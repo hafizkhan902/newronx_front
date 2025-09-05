@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import UserAvatar from '../../UserAvatar';
 import { useUser } from '../../../UserContext';
 
-const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate }) => {
+const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) => {
   const { user } = useUser();
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [activeFilters, setActiveFilters] = useState(['todo', 'in_progress']); // Default to show active tasks
   const [visibleColumns, setVisibleColumns] = useState({
     status: true,
     priority: true,
@@ -236,6 +238,31 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate }) => {
     }));
   };
 
+  const handleFilterChange = (statusFilters) => {
+    setActiveFilters(statusFilters);
+    if (onFilterChange) {
+      onFilterChange(statusFilters);
+    }
+  };
+
+  const setQuickFilter = (filterType) => {
+    let newFilters;
+    switch (filterType) {
+      case 'all':
+        newFilters = ['todo', 'in_progress', 'completed', 'cancelled'];
+        break;
+      case 'active':
+        newFilters = ['todo', 'in_progress'];
+        break;
+      case 'completed':
+        newFilters = ['completed'];
+        break;
+      default:
+        newFilters = ['todo', 'in_progress'];
+    }
+    handleFilterChange(newFilters);
+  };
+
   const formatDate = (task) => {
     // Handle both dueDate (legacy) and deadline (new backend format)
     const dateString = task.deadline || task.dueDate;
@@ -261,12 +288,341 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate }) => {
     return new Date(dateString) < new Date();
   };
 
+  // Since we're using backend filtering, we can display all returned tasks
+  // The backend will filter based on activeFilters
+
+  // Function to render task table
+  const renderTaskTable = (taskList, isCompleted = false) => {
+    if (taskList.length === 0) return null;
+
+    return (
+      <div className={`bg-white border border-gray-200 overflow-hidden overflow-x-auto ${isCompleted ? 'opacity-75' : ''}`}>
+        {/* Header Row */}
+        <div className={`border-b border-gray-200 ${isCompleted ? 'bg-green-50' : 'bg-gray-50'}`}>
+          <div className="flex items-center h-10 px-2 sm:px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-full">
+            <div className="w-4 flex-shrink-0">
+              <input 
+                type="checkbox" 
+                className="w-3 h-3"
+                checked={taskList.length > 0 && taskList.every(task => selectedTasks.has(task._id))}
+                onChange={() => {
+                  const allSelected = taskList.every(task => selectedTasks.has(task._id));
+                  setSelectedTasks(prev => {
+                    const newSet = new Set(prev);
+                    taskList.forEach(task => {
+                      if (allSelected) {
+                        newSet.delete(task._id);
+                      } else {
+                        newSet.add(task._id);
+                      }
+                    });
+                    return newSet;
+                  });
+                }}
+                title={`Select all ${isCompleted ? 'completed' : 'active'} tasks`}
+              />
+            </div>
+            <div className="flex-1 min-w-0 px-1 sm:px-2">Task</div>
+            {visibleColumns.status && <div className="w-20 sm:w-24 px-1 sm:px-2">Status</div>}
+            {visibleColumns.priority && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden sm:block">Priority</div>}
+            {visibleColumns.assignee && <div className="w-24 sm:w-32 px-1 sm:px-2">Assignee</div>}
+            {visibleColumns.dueDate && <div className="w-20 sm:w-24 px-1 sm:px-2">Due</div>}
+            {visibleColumns.category && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">Category</div>}
+            {visibleColumns.estimatedHours && <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">Hours</div>}
+            {visibleColumns.tags && <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">Tags</div>}
+          </div>
+        </div>
+
+        {/* Task Rows */}
+        <div className="divide-y divide-gray-100">
+          {taskList.map((task) => renderTaskRow(task, isCompleted))}
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render individual task row
+  const renderTaskRow = (task, isCompleted = false) => {
+    const assigneeInfo = getAssigneeDisplay(task);
+    const overdue = isOverdue(task);
+    const canUpdate = canUserUpdateTask(task);
+    const statusOption = statusOptions.find(s => s.value === task.status);
+    const priorityOption = priorityOptions.find(p => p.value === task.priority);
+    const categoryOption = categoryOptions.find(c => c.value === task.category);
+    
+    return (
+      <div key={task._id} className={`flex items-center h-12 px-2 sm:px-4 hover:bg-gray-50 group min-w-full ${isCompleted ? 'bg-green-50' : ''}`}>
+        {/* Checkbox */}
+        <div className="w-4 flex-shrink-0">
+          <input 
+            type="checkbox" 
+            className="w-3 h-3"
+            checked={selectedTasks.has(task._id)}
+            onChange={() => toggleTaskSelection(task._id)}
+            title="Select for batch operations"
+          />
+        </div>
+
+        {/* Task Title */}
+        <div className="flex-1 min-w-0 px-1 sm:px-2">
+          {editingTask === `${task._id}-title` ? (
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={() => updateTask(task._id, 'title', editValue)}
+              onKeyPress={(e) => e.key === 'Enter' && updateTask(task._id, 'title', editValue)}
+              className="w-full text-sm border-none outline-none bg-transparent"
+              autoFocus
+            />
+          ) : (
+            <div
+              onClick={() => startEditing(task._id, 'title', task.title)}
+              className={`text-sm cursor-text hover:bg-gray-100 px-1 py-1 -mx-1 rounded truncate ${isCompleted ? 'text-gray-600 line-through' : 'text-gray-900'}`}
+            >
+              {task.title}
+            </div>
+          )}
+        </div>
+
+        {/* Status */}
+        {visibleColumns.status && (
+          <div className="w-20 sm:w-24 px-1 sm:px-2">
+            {canUpdate && !isCompleted ? (
+              <select
+                value={task.status}
+                onChange={(e) => toggleTaskStatus(task._id, e.target.value)}
+                className="text-xs border-none outline-none bg-transparent cursor-pointer w-full"
+                style={{ color: statusOption?.color }}
+                title="Click to update status (PATCH /api/tasks/{id}/status)"
+              >
+                {statusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span 
+                className="text-xs"
+                style={{ color: statusOption?.color }}
+                title={isCompleted ? "Task completed" : "Only assigned users can update status"}
+              >
+                {statusOption?.label || task.status}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Priority */}
+        {visibleColumns.priority && (
+          <div className="w-16 sm:w-20 px-1 sm:px-2 hidden sm:block">
+            <select
+              value={task.priority}
+              onChange={(e) => updateTask(task._id, 'priority', e.target.value)}
+              className="text-xs border-none outline-none bg-transparent cursor-pointer w-full"
+              style={{ color: priorityOption?.color }}
+              disabled={isCompleted}
+            >
+              {priorityOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Assignee */}
+        {visibleColumns.assignee && (
+          <div className="w-24 sm:w-32 px-1 sm:px-2">
+            {assigneeInfo.type === 'everyone' && assigneeInfo.assignments ? (
+              <div className="flex items-center space-x-1">
+                <div className="flex -space-x-1">
+                  {assigneeInfo.assignments.slice(0, 3).map((assignment, index) => (
+                    <div key={assignment.user._id} className="flex-shrink-0">
+                      <UserAvatar 
+                        userId={assignment.user._id}
+                        avatarUrl={assignment.user.avatar} 
+                        size={14}
+                      />
+                    </div>
+                  ))}
+                  {assigneeInfo.assignments.length > 3 && (
+                    <div className="flex-shrink-0 w-3.5 h-3.5 bg-gray-300 rounded-full flex items-center justify-center">
+                      <span className="text-xs text-gray-600">+{assigneeInfo.assignments.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
+                  Everyone ({assigneeInfo.count})
+                </span>
+                <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
+                  All ({assigneeInfo.count})
+                </span>
+              </div>
+            ) : assigneeInfo.type === 'multiple' && assigneeInfo.assignments ? (
+              <div className="flex items-center space-x-1">
+                <div className="flex -space-x-1">
+                  {assigneeInfo.assignments.slice(0, 3).map((assignment, index) => (
+                    <div key={assignment.user._id} className="flex-shrink-0">
+                      <UserAvatar 
+                        userId={assignment.user._id}
+                        avatarUrl={assignment.user.avatar} 
+                        size={14}
+                      />
+                    </div>
+                  ))}
+                  {assigneeInfo.assignments.length > 3 && (
+                    <div className="flex-shrink-0 w-3.5 h-3.5 bg-gray-300 rounded-full flex items-center justify-center">
+                      <span className="text-xs text-gray-600">+{assigneeInfo.assignments.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
+                  {assigneeInfo.display}
+                </span>
+                <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
+                  {assigneeInfo.count}
+                </span>
+              </div>
+            ) : assigneeInfo.type === 'single' && assigneeInfo.user ? (
+              <div className="flex items-center space-x-1 sm:space-x-1.5">
+                <div className="flex-shrink-0">
+                  <UserAvatar 
+                    userId={assigneeInfo.user._id}
+                    avatarUrl={assigneeInfo.user.avatar} 
+                    size={16}
+                  />
+                </div>
+                <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
+                  {assigneeInfo.user.fullName || assigneeInfo.user.firstName}
+                </span>
+                <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
+                  {assigneeInfo.user.firstName || assigneeInfo.user.fullName?.split(' ')[0]}
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-400">-</span>
+            )}
+          </div>
+        )}
+
+        {/* Due Date */}
+        {visibleColumns.dueDate && (
+          <div className="w-20 sm:w-24 px-1 sm:px-2">
+            <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-700'}`}>
+              {formatDate(task)}
+            </span>
+          </div>
+        )}
+
+        {/* Category */}
+        {visibleColumns.category && (
+          <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">
+            <div className="flex items-center space-x-1">
+              <span className="text-xs">{categoryOption?.icon}</span>
+              <span className="text-xs text-gray-700 hidden lg:inline">{categoryOption?.label}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Estimated Hours */}
+        {visibleColumns.estimatedHours && (
+          <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">
+            {editingTask === `${task._id}-estimatedHours` ? (
+              <input
+                type="number"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => updateTask(task._id, 'estimatedHours', parseFloat(editValue) || 0)}
+                onKeyPress={(e) => e.key === 'Enter' && updateTask(task._id, 'estimatedHours', parseFloat(editValue) || 0)}
+                className="w-full text-xs border-none outline-none bg-transparent"
+                autoFocus
+                disabled={isCompleted}
+              />
+            ) : (
+              <div
+                onClick={() => !isCompleted && startEditing(task._id, 'estimatedHours', task.estimatedHours || '')}
+                className={`text-xs text-gray-700 px-1 py-1 -mx-1 rounded ${!isCompleted ? 'cursor-text hover:bg-gray-100' : ''}`}
+              >
+                {task.estimatedHours ? `${task.estimatedHours}h` : '-'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tags */}
+        {visibleColumns.tags && (
+          <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">
+            <div className="flex flex-wrap gap-1">
+              {task.tags && task.tags.slice(0, 2).map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex px-1 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
+                >
+                  {tag}
+                </span>
+              ))}
+              {task.tags && task.tags.length > 2 && (
+                <span className="text-xs text-gray-400">+{task.tags.length - 2}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-col space-y-3">
-        {/* Column Toggle Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Filter Controls */}
+        <div className="flex flex-col space-y-3">
+          {/* Quick Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              <span className="text-sm font-medium text-gray-700">Quick filters:</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setQuickFilter('active')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    activeFilters.length === 2 && activeFilters.includes('todo') && activeFilters.includes('in_progress')
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Active Tasks
+                </button>
+                <button
+                  onClick={() => setQuickFilter('completed')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    activeFilters.length === 1 && activeFilters.includes('completed')
+                      ? 'bg-green-100 text-green-700 border border-green-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Completed
+                </button>
+                <button
+                  onClick={() => setQuickFilter('all')}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    activeFilters.length === 4
+                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All Tasks
+                </button>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">
+              {tasks.length} tasks shown
+            </div>
+          </div>
+
+          {/* Column Toggle Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
             <span className="text-sm font-medium text-gray-700">Show columns:</span>
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -286,9 +642,6 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate }) => {
                 </label>
               ))}
             </div>
-          </div>
-          <div className="text-sm text-gray-500">
-            {tasks.length} tasks
           </div>
         </div>
 
@@ -346,279 +699,24 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate }) => {
         )}
       </div>
 
-      {/* Spreadsheet Table */}
-      <div className="bg-white border border-gray-200 overflow-hidden overflow-x-auto">
-        {/* Header Row */}
-        <div className="border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center h-10 px-2 sm:px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-full">
-            <div className="w-4 flex-shrink-0">
-              <input 
-                type="checkbox" 
-                className="w-3 h-3"
-                checked={tasks.length > 0 && selectedTasks.size === tasks.length}
-                onChange={() => {
-                  if (selectedTasks.size === tasks.length) {
-                    clearSelection();
-                  } else {
-                    selectAllTasks();
-                  }
-                }}
-                title="Select all tasks"
-              />
-            </div>
-            <div className="flex-1 min-w-0 px-1 sm:px-2">Task</div>
-            {visibleColumns.status && <div className="w-20 sm:w-24 px-1 sm:px-2">Status</div>}
-            {visibleColumns.priority && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden sm:block">Priority</div>}
-            {visibleColumns.assignee && <div className="w-24 sm:w-32 px-1 sm:px-2">Assignee</div>}
-            {visibleColumns.dueDate && <div className="w-20 sm:w-24 px-1 sm:px-2">Due</div>}
-            {visibleColumns.category && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">Category</div>}
-            {visibleColumns.estimatedHours && <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">Hours</div>}
-            {visibleColumns.tags && <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">Tags</div>}
-          </div>
+      {/* Filtered Tasks */}
+      {tasks.length > 0 ? (
+        <div className="space-y-2">
+          {renderTaskTable(tasks, activeFilters.length === 1 && activeFilters.includes('completed'))}
         </div>
-
-        {/* Task Rows */}
-        <div className="divide-y divide-gray-100">
-          {tasks.map((task) => {
-            const assigneeInfo = getAssigneeDisplay(task);
-            const overdue = isOverdue(task);
-            const canUpdate = canUserUpdateTask(task);
-            const statusOption = statusOptions.find(s => s.value === task.status);
-            const priorityOption = priorityOptions.find(p => p.value === task.priority);
-            const categoryOption = categoryOptions.find(c => c.value === task.category);
-            
-            return (
-              <div key={task._id} className="flex items-center h-12 px-2 sm:px-4 hover:bg-gray-50 group min-w-full">
-                {/* Checkbox */}
-                <div className="w-4 flex-shrink-0">
-                  <input 
-                    type="checkbox" 
-                    className="w-3 h-3"
-                    checked={selectedTasks.has(task._id)}
-                    onChange={() => toggleTaskSelection(task._id)}
-                    title="Select for batch operations"
-                  />
-                </div>
-
-                {/* Task Title */}
-                <div className="flex-1 min-w-0 px-1 sm:px-2">
-                  {editingTask === `${task._id}-title` ? (
-                    <input
-                      type="text"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onBlur={() => updateTask(task._id, 'title', editValue)}
-                      onKeyPress={(e) => e.key === 'Enter' && updateTask(task._id, 'title', editValue)}
-                      className="w-full text-sm border-none outline-none bg-transparent"
-                      autoFocus
-                    />
-                  ) : (
-                    <div
-                      onClick={() => startEditing(task._id, 'title', task.title)}
-                      className="text-sm text-gray-900 cursor-text hover:bg-gray-100 px-1 py-1 -mx-1 rounded truncate"
-                    >
-                      {task.title}
-                    </div>
-                  )}
-                </div>
-
-                {/* Status */}
-                {visibleColumns.status && (
-                  <div className="w-20 sm:w-24 px-1 sm:px-2">
-                    {canUpdate ? (
-                      <select
-                        value={task.status}
-                        onChange={(e) => toggleTaskStatus(task._id, e.target.value)}
-                        className="text-xs border-none outline-none bg-transparent cursor-pointer w-full"
-                        style={{ color: statusOption?.color }}
-                        title="Click to update status (PATCH /api/tasks/{id}/status)"
-                      >
-                        {statusOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span 
-                        className="text-xs"
-                        style={{ color: statusOption?.color }}
-                        title="Only assigned users can update status"
-                      >
-                        {statusOption?.label || task.status}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Priority */}
-                {visibleColumns.priority && (
-                  <div className="w-16 sm:w-20 px-1 sm:px-2 hidden sm:block">
-                    <select
-                      value={task.priority}
-                      onChange={(e) => updateTask(task._id, 'priority', e.target.value)}
-                      className="text-xs border-none outline-none bg-transparent cursor-pointer w-full"
-                      style={{ color: priorityOption?.color }}
-                    >
-                      {priorityOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Assignee */}
-                {visibleColumns.assignee && (
-                  <div className="w-24 sm:w-32 px-1 sm:px-2">
-                    {assigneeInfo.type === 'everyone' && assigneeInfo.assignments ? (
-                      <div className="flex items-center space-x-1">
-                        <div className="flex -space-x-1">
-                          {assigneeInfo.assignments.slice(0, 3).map((assignment, index) => (
-                            <div key={assignment.user._id} className="flex-shrink-0">
-                              <UserAvatar 
-                                userId={assignment.user._id}
-                                avatarUrl={assignment.user.avatar} 
-                                size={14}
-                              />
-                            </div>
-                          ))}
-                          {assigneeInfo.assignments.length > 3 && (
-                            <div className="flex-shrink-0 w-3.5 h-3.5 bg-gray-300 rounded-full flex items-center justify-center">
-                              <span className="text-xs text-gray-600">+{assigneeInfo.assignments.length - 3}</span>
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
-                          Everyone ({assigneeInfo.count})
-                        </span>
-                        <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
-                          All ({assigneeInfo.count})
-                        </span>
-                      </div>
-                    ) : assigneeInfo.type === 'multiple' && assigneeInfo.assignments ? (
-                      <div className="flex items-center space-x-1">
-                        <div className="flex -space-x-1">
-                          {assigneeInfo.assignments.slice(0, 3).map((assignment, index) => (
-                            <div key={assignment.user._id} className="flex-shrink-0">
-                              <UserAvatar 
-                                userId={assignment.user._id}
-                                avatarUrl={assignment.user.avatar} 
-                                size={14}
-                              />
-                            </div>
-                          ))}
-                          {assigneeInfo.assignments.length > 3 && (
-                            <div className="flex-shrink-0 w-3.5 h-3.5 bg-gray-300 rounded-full flex items-center justify-center">
-                              <span className="text-xs text-gray-600">+{assigneeInfo.assignments.length - 3}</span>
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
-                          {assigneeInfo.display}
-                        </span>
-                        <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
-                          {assigneeInfo.count}
-                        </span>
-                      </div>
-                    ) : assigneeInfo.type === 'single' && assigneeInfo.user ? (
-                      <div className="flex items-center space-x-1 sm:space-x-1.5">
-                        <div className="flex-shrink-0">
-                          <UserAvatar 
-                            userId={assigneeInfo.user._id}
-                            avatarUrl={assigneeInfo.user.avatar} 
-                            size={16}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-700 truncate min-w-0 hidden sm:inline">
-                          {assigneeInfo.user.fullName || assigneeInfo.user.firstName}
-                        </span>
-                        <span className="text-xs text-gray-700 truncate min-w-0 sm:hidden">
-                          {assigneeInfo.user.firstName || assigneeInfo.user.fullName?.split(' ')[0]}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">-</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Due Date */}
-                {visibleColumns.dueDate && (
-                  <div className="w-20 sm:w-24 px-1 sm:px-2">
-                    <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-700'}`}>
-                      {formatDate(task)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Category */}
-                {visibleColumns.category && (
-                  <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs">{categoryOption?.icon}</span>
-                      <span className="text-xs text-gray-700 hidden lg:inline">{categoryOption?.label}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Estimated Hours */}
-                {visibleColumns.estimatedHours && (
-                  <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">
-                    {editingTask === `${task._id}-estimatedHours` ? (
-                      <input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => updateTask(task._id, 'estimatedHours', parseFloat(editValue) || 0)}
-                        onKeyPress={(e) => e.key === 'Enter' && updateTask(task._id, 'estimatedHours', parseFloat(editValue) || 0)}
-                        className="w-full text-xs border-none outline-none bg-transparent"
-                        autoFocus
-                      />
-                    ) : (
-                      <div
-                        onClick={() => startEditing(task._id, 'estimatedHours', task.estimatedHours || '')}
-                        className="text-xs text-gray-700 cursor-text hover:bg-gray-100 px-1 py-1 -mx-1 rounded"
-                      >
-                        {task.estimatedHours ? `${task.estimatedHours}h` : '-'}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tags */}
-                {visibleColumns.tags && (
-                  <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">
-                    <div className="flex flex-wrap gap-1">
-                      {task.tags && task.tags.slice(0, 2).map((tag, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex px-1 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {task.tags && task.tags.length > 2 && (
-                        <span className="text-xs text-gray-400">+{task.tags.length - 2}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      
-      {tasks.length === 0 && (
+      ) : (
         <div className="text-center py-12 bg-white border border-gray-200">
           <div className="text-gray-400 mb-2">
             <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4v6m5-6v6m-5 0V5a2 2 0 012-2h2a2 2 0 012 2v0" />
             </svg>
           </div>
-          <p className="text-sm text-gray-500">No tasks yet. Create your first task to get started.</p>
+          <p className="text-sm text-gray-500">
+            {activeFilters.length === 0 
+              ? 'Select a filter to view tasks.' 
+              : `No tasks found with status: ${activeFilters.join(', ')}.`
+            }
+          </p>
         </div>
       )}
     </div>

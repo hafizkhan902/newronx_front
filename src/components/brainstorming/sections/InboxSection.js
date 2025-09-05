@@ -113,6 +113,26 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
       fetchChats(false);
     };
 
+    const handleChatListUpdate = (event) => {
+      const { type, chat, chatId, memberCount } = event.detail;
+      
+      if (type === 'add' && chat) {
+        console.log('📋 Adding new chat to list:', chat.chatName);
+        // Refresh chat list to include the new chat
+        fetchChats(false);
+      } else if (type === 'update' && chatId && memberCount) {
+        console.log('📋 Updating chat member count:', chatId, memberCount);
+        // Update specific chat member count
+        setChats(prevChats => 
+          prevChats.map(existingChat => 
+            existingChat._id === chatId 
+              ? { ...existingChat, members: { ...existingChat.members, length: memberCount } }
+              : existingChat
+          )
+        );
+      }
+    };
+
     const handleMessageSent = (event) => {
       const { chatId, content } = event.detail;
       console.log('📤 Message sent from inbox for chat:', chatId);
@@ -139,11 +159,13 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
     window.addEventListener('messageReceived', handleMessageReceived);
     window.addEventListener('messageSent', handleMessageSent);
     window.addEventListener('chatCreated', handleChatCreated);
+    window.addEventListener('chatListUpdate', handleChatListUpdate);
 
     return () => {
       window.removeEventListener('messageReceived', handleMessageReceived);
       window.removeEventListener('messageSent', handleMessageSent);
       window.removeEventListener('chatCreated', handleChatCreated);
+      window.removeEventListener('chatListUpdate', handleChatListUpdate);
     };
   }, [user]); // Removed chatUnreadCounts dependency to prevent infinite re-renders
 

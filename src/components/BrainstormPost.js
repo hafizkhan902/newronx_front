@@ -357,6 +357,69 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     }
   };
 
+  // Handle approach acceptance response according to backend recommendation
+  const handleApproachAccepted = (response) => {
+    const { collaborationChat } = response.data || {};
+    
+    if (!collaborationChat) {
+      // Fallback for old response format
+      showNotification(`✅ Approach accepted! ${response.message}`);
+      return;
+    }
+    
+    if (collaborationChat.action === 'created_new') {
+      // Show "New chat created" UI
+      const chatName = collaborationChat.chatName || post.title;
+      showNotification(`🆕 New collaboration chat created: ${chatName}`);
+      
+      // Add new chat to chat list
+      addChatToList(collaborationChat);
+      
+      // Trigger chat created event for real-time updates
+      window.dispatchEvent(new CustomEvent('chatCreated', {
+        detail: { 
+          chatId: collaborationChat.chatId, 
+          chatName: chatName, 
+          type: 'idea_collaboration' 
+        }
+      }));
+      
+      console.log(`✅ [BrainstormPost] New collaboration chat created: ${chatName} (ID: ${collaborationChat.chatId})`);
+      
+    } else if (collaborationChat.action === 'added_to_existing') {
+      // Show "Member added" UI
+      const approacherName = response.data.approach?.user?.fullName || 'Team member';
+      showNotification(`👥 ${approacherName} added to ${collaborationChat.chatName}`);
+      
+      // Update existing chat member count
+      updateChatMemberCount(collaborationChat.chatId, collaborationChat.memberCount);
+      
+      console.log(`✅ [BrainstormPost] Member added to existing chat: ${collaborationChat.chatName} (ID: ${collaborationChat.chatId})`);
+    }
+  };
+
+  // Show notification to user
+  const showNotification = (message) => {
+    setErrorMessage(message);
+    setShowErrorPopup(true);
+  };
+
+  // Add new chat to the chat list (triggers inbox refresh)
+  const addChatToList = (collaborationChat) => {
+    // Dispatch event to refresh inbox chat list
+    window.dispatchEvent(new CustomEvent('chatListUpdate', {
+      detail: { type: 'add', chat: collaborationChat }
+    }));
+  };
+
+  // Update existing chat member count
+  const updateChatMemberCount = (chatId, memberCount) => {
+    // Dispatch event to update specific chat in inbox
+    window.dispatchEvent(new CustomEvent('chatListUpdate', {
+      detail: { type: 'update', chatId, memberCount }
+    }));
+  };
+
   const handleApproachAction = async (approachId, action, resolution = null) => {
     try {
       console.log(`[BrainstormPost] ${action} approach:`, approachId, resolution ? 'with resolution' : '');
@@ -412,66 +475,33 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       
       // Handle chat creation for selected approaches
       if (action === 'selected' && response.success) {
-        let successMessage = '';
-        let chatId = null;
-        let chatName = '';
+        // Use the backend's recommended approach for handling chat creation/addition
+        handleApproachAccepted(response);
         
-        if (response.data?.collaborationChat) {
-          chatId = response.data.collaborationChat.chatId;
-          chatName = response.data.collaborationChat.chatName || post.title;
-          
-          console.log(`✅ [BrainstormPost] Collaboration chat created: ${chatName} (ID: ${chatId})`);
-          
-          // Trigger chat created event for real-time updates
-          window.dispatchEvent(new CustomEvent('chatCreated', {
-            detail: { chatId, chatName, type: 'idea_collaboration' }
-          }));
-          
-          if (resolution) {
-            successMessage = `🎉 Approach accepted with resolution! ${response.data.approach?.user?.fullName} added as ${resolution.suggestedRole || response.data.resolution?.member?.assignedRole}. Collaboration chat "${chatName}" is ready.`;
-          } else {
-            successMessage = `🎉 Approach accepted! Collaboration chat "${chatName}" has been created.`;
-          }
-        } else if (response.data?.collaborationChat?.message === "Collaboration chat already exists") {
-          // Handle existing chat scenario
-          chatId = response.data.collaborationChat.existingChatId;
-          console.log(`ℹ️ [BrainstormPost] Chat already exists: ${chatId}`);
-          successMessage = `✅ Approach accepted! Opening existing collaboration chat.`;
-        } else {
-          successMessage = resolution ? 
-            `🎉 Approach accepted with resolution! ${response.message}` :
-            `✅ Approach accepted! ${response.message}`;
-        }
-        
-        // Close approaches modal
-        setShowApproachesList(false);
-        
-        // Show success notification
-        setErrorMessage(successMessage);
-        setShowErrorPopup(true);
-        
-        // Navigate to inbox after a short delay to show the success message
-        if (chatId && onNavigateToInbox) {
+        // Navigate to inbox if chat was created/updated
+        if (onNavigateToInbox && response.data?.collaborationChat?.chatId) {
           setTimeout(() => {
-            console.log(`🚀 [BrainstormPost] Navigating to inbox with chatId: ${chatId}`);
-            onNavigateToInbox(chatId);
-          }, 2000); // Slightly longer delay for resolution messages
-        }
-      } else {
-        console.log(`[BrainstormPost] Successfully ${action} approach`);
-        
-        // Show simple success message for non-selected actions
-        if (action === 'queued') {
-          setErrorMessage('✅ Approach queued for later review.');
-        } else if (action === 'declined') {
-          setErrorMessage('❌ Approach declined.');
-        }
-        
-        if (action !== 'selected') {
-          setShowErrorPopup(true);
-          setTimeout(() => setShowErrorPopup(false), 3000);
+            console.log(`🚀 [BrainstormPost] Navigating to inbox with chatId: ${response.data.collaborationChat.chatId}`);
+            onNavigateToInbox(response.data.collaborationChat.chatId);
+          }, 2000);
         }
       }
+        
+      // Close approaches modal
+      setShowApproachesList(false);
+      
+      // Show simple success message for non-selected actions
+      if (action === 'queued') {
+        setErrorMessage('✅ Approach queued for later review.');
+        setShowErrorPopup(true);
+        setTimeout(() => setShowErrorPopup(false), 3000);
+      } else if (action === 'declined') {
+        setErrorMessage('❌ Approach declined.');
+        setShowErrorPopup(true);
+        setTimeout(() => setShowErrorPopup(false), 3000);
+      }
+      
+      console.log(`[BrainstormPost] Successfully ${action} approach`);
       
     } catch (err) {
       console.error(`[BrainstormPost] Error ${action} approach:`, err);

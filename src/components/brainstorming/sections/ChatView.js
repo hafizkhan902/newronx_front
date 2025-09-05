@@ -12,9 +12,11 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showTeamManagement, setShowTeamManagement] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const messagesEndRef = useRef(null);
   const markAsReadTimeoutRef = useRef(null); // Prevent multiple rapid calls
   const typingTimeoutRef = useRef(null);
+  const optionsMenuRef = useRef(null);
   
   const { 
     messages,
@@ -97,6 +99,20 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
     }
   }, [user, messages.length]);
 
+  // Close options menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target)) {
+        setShowOptionsMenu(false);
+      }
+    };
+
+    if (showOptionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showOptionsMenu]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -123,14 +139,25 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
   };
 
   const getChatName = () => {
+    let name;
+    
     if (chat.type === 'group') {
-      return chat.name || 'Group Chat';
+      name = chat.name || 'Group Chat';
+    } else {
+      const otherMember = chat.members?.find(member => 
+        member.user && String(member.user._id) !== String(user?._id)
+      );
+      name = otherMember?.user?.fullName || otherMember?.user?.name || 'Direct Chat';
     }
     
-    const otherMember = chat.members?.find(member => 
-      member.user && String(member.user._id) !== String(user?._id)
-    );
-    return otherMember?.user?.fullName || otherMember?.user?.name || 'Direct Chat';
+    // Remove emojis and clean up the name for professional appearance
+    // Remove common emojis like 💡, 🚀, 💼, etc.
+    const cleanName = name
+      .replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
+      .replace(/^\s*[\-\•\*\>\<\|\~\`\^\&\%\$\#\@\!\?]*\s*/, '') // Remove leading symbols
+      .trim();
+    
+    return cleanName || (chat.type === 'group' ? 'Group Chat' : 'Direct Chat');
   };
 
   const getChatAvatar = () => {
@@ -199,92 +226,115 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
 
   return (
     <div className="max-w-xl mx-auto w-full bg-white border border-gray-200 flex flex-col h-96">
-      {/* Chat Header */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center">
-        <button 
-          onClick={onBack} 
-          className="mr-3 p-1 hover:bg-gray-100 rounded transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        
+      {/* Clean Professional Chat Header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
+        {/* Left side - Back button and chat info */}
         <div className="flex items-center flex-1">
+          <button 
+            onClick={onBack} 
+            className="mr-3 p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          {/* Chat Avatar */}
           {getChatAvatar() ? (
             <UserAvatar
               userId={getOtherMemberId()}
               avatarUrl={getChatAvatar()}
               size={32}
-              isMentor={chat.otherMember?.isMentor}
-              isInvestor={chat.otherMember?.isInvestor}
               onClick={() => onAvatarClick && getOtherMemberId() && onAvatarClick(getOtherMemberId())}
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 mr-3">
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
               {chat.type === 'group' ? (
-                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A2.998 2.998 0 0 0 17.06 6H16c-.8 0-1.54.37-2.01.99L12 9.5 10.01 6.99C9.54 6.37 8.8 6 8 6H6.94c-1.24 0-2.31.81-2.66 2.01L1.5 16H4v6h2v-6h2.5l1.5-4.5L12 14.5l2-3 1.5 4.5H18v6h2z"/>
                 </svg>
               ) : (
-                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
               )}
             </div>
           )}
           
-          <div 
-            className={`ml-3 flex-1 ${
-              chat.metadata?.chatType === 'idea_collaboration' 
-                ? 'cursor-pointer hover:bg-gray-50 rounded p-2 -m-2 transition-colors' 
-                : ''
-            }`}
-            onClick={() => {
-              if (chat.metadata?.chatType === 'idea_collaboration' && chat.metadata?.ideaId) {
-                setShowTeamManagement(true);
-              }
-            }}
-            title={chat.metadata?.chatType === 'idea_collaboration' ? 'Click to manage team structure' : ''}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <h3 className="text-sm font-medium text-gray-900">{getChatName()}</h3>
-                {chat.metadata?.chatType === 'idea_collaboration' && (
-                  <div className="ml-2 flex items-center">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                      💡 Collaboration
-                    </span>
-                    <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                {connected ? (
-                  <div className="flex items-center text-xs text-green-600">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                    <span>Live</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-xs text-orange-600">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
-                    <span>Sync</span>
-                  </div>
-                )}
-              </div>
+          {/* Chat Name */}
+          <div className="ml-3 flex-1 min-w-0">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-sm font-medium text-gray-900 truncate">{getChatName()}</h3>
+              {chat.metadata?.chatType === 'idea_collaboration' && (
+                <div className="flex-shrink-0">
+                  <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 truncate">
               {chat.metadata?.chatType === 'idea_collaboration' 
-                ? `Team collaboration • Click to manage roles` 
+                ? 'Team collaboration'
                 : chat.type === 'group' 
                   ? `${chat.members?.length || 0} members` 
                   : 'Direct message'
               }
             </p>
           </div>
+        </div>
+
+        {/* Right side - Options menu */}
+        <div className="relative" ref={optionsMenuRef}>
+          <button
+            onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+            </svg>
+          </button>
+
+          {/* Dropdown Menu */}
+          {showOptionsMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+              <div className="py-1">
+                {chat.metadata?.chatType === 'idea_collaboration' && (
+                  <button
+                    onClick={() => {
+                      setShowTeamManagement(true);
+                      setShowOptionsMenu(false);
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Team Management
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowOptionsMenu(false)}
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Chat Info
+                </button>
+                <button
+                  onClick={() => setShowOptionsMenu(false)}
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Settings
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

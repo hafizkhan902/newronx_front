@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiRequest } from '../../../utils/api';
+import { useUser } from '../../../UserContext';
 import UserAvatar from '../../UserAvatar';
 import TaskModal from './TaskModal';
 import TaskList from './TaskList';
 
 const TeamStructureDashboard = ({ ideaId, onClose }) => {
+  const { user } = useUser();
   const [teamData, setTeamData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,11 +14,213 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [tasks, setTasks] = useState([]);
+  
+  // Team member menu states
+  const [activeMenu, setActiveMenu] = useState(null);
+  const [showSubroleModal, setShowSubroleModal] = useState(null);
+  const [subroleStep, setSubroleStep] = useState('search'); // 'search' -> 'select' -> 'confirm'
+  const [subroleQuery, setSubroleQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [subroleOptions, setSubroleOptions] = useState([]);
+  const [selectedSubrole, setSelectedSubrole] = useState(null);
+  const menuRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
     fetchTeamStructure();
     fetchTasks();
   }, [ideaId]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setActiveMenu(null);
+        setShowSubroleModal(null);
+        setSubroleStep('search');
+        setSubroleQuery('');
+        setSearchResults([]);
+        setSelectedUser(null);
+        setSubroleOptions([]);
+        setSelectedSubrole(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // User search functionality using team-specific endpoint
+  const searchUsers = useCallback(async (query) => {
+    try {
+      setSearchLoading(true);
+      
+      if (!query || query.trim().length < 2) {
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      const response = await apiRequest(`/api/teams/${ideaId}/search-users?q=${encodeURIComponent(query.trim())}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Backend returns users in data.users format
+        const users = data.data?.users || data.users || [];
+        
+        console.log('🔍 [TeamStructure] User search results:', users.length, 'users found');
+        setSearchResults(users);
+      } else {
+        console.error('❌ [TeamStructure] User search failed:', response.status);
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error('❌ Error searching users:', err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [ideaId]);
+
+  const handleSubroleSearch = (query) => {
+    setSubroleQuery(query);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      searchUsers(query);
+    }, 300);
+  };
+
+  // Fetch subrole options based on parent role
+  const fetchSubroleOptions = async (parentRole) => {
+    try {
+      console.log('🔄 [TeamStructure] Fetching subrole options for role:', parentRole);
+      const response = await apiRequest(`/api/teams/subrole-options?roleType=${encodeURIComponent(parentRole)}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const options = data.data?.subroleOptions || [];
+        console.log('✅ [TeamStructure] Subrole options loaded:', options.length);
+        setSubroleOptions(options);
+        return options;
+      } else {
+        console.error('❌ [TeamStructure] Failed to fetch subrole options:', response.status);
+        setSubroleOptions([]);
+        return [];
+      }
+    } catch (err) {
+      console.error('❌ Error fetching subrole options:', err);
+      setSubroleOptions([]);
+      return [];
+    }
+  };
+
+  // Handle user selection and move to subrole selection step
+  const handleUserSelection = async (user, parentMember) => {
+    setSelectedUser(user);
+    console.log('👤 [TeamStructure] User selected:', user.name, 'for parent role:', parentMember.assignedRole);
+    
+    // Fetch subrole options for the parent role
+    await fetchSubroleOptions(parentMember.assignedRole);
+    setSubroleStep('select');
+  };
+
+  const handleLeaveTeam = async (memberId) => {
+    try {
+      // Security check: only allow users to leave if it's their own membership
+      const member = teamData?.teamStructure?.teamComposition?.find(m => m._id === memberId);
+      if (!member || String(member.user._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: User cannot leave team for another member');
+        alert('You can only leave the team for yourself.');
+        return;
+      }
+
+      console.log('🔄 [TeamStructure] Member leaving team:', memberId);
+      // TODO: Implement leave team API call
+      // const response = await apiRequest(`/api/teams/${ideaId}/members/${memberId}`, { method: 'DELETE' });
+      
+      // For now, show confirmation
+      if (window.confirm('Are you sure you want to leave this team?')) {
+        // Refresh team structure after leaving
+        await fetchTeamStructure();
+        setActiveMenu(null);
+      }
+    } catch (err) {
+      console.error('❌ Error leaving team:', err);
+    }
+  };
+
+  const handleAddSubrole = async () => {
+    try {
+      if (!selectedUser || !selectedSubrole || !showSubroleModal) {
+        console.error('❌ [TeamStructure] Missing required data for subrole assignment');
+        return;
+      }
+
+      const parentMember = showSubroleModal;
+      
+      // Security check: only allow users to add subroles to their own role
+      if (String(parentMember.user._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: User cannot add subrole for another member');
+        alert('You can only add subroles to your own role.');
+        return;
+      }
+
+      console.log('🔄 [TeamStructure] Adding subrole:', {
+        parentMemberId: parentMember._id,
+        selectedUser: selectedUser.name,
+        selectedSubrole: selectedSubrole.title
+      });
+
+      const response = await apiRequest(`/api/teams/${ideaId}/members/${parentMember._id}/subroles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newUserId: selectedUser._id,
+          subroleData: selectedSubrole
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ [TeamStructure] Subrole assigned successfully:', data);
+        
+        // Show success message
+        alert(data.message || `${selectedUser.name} added as ${selectedSubrole.title}`);
+        
+        // Reset all subrole modal states
+        setShowSubroleModal(null);
+        setSubroleStep('search');
+        setSubroleQuery('');
+        setSearchResults([]);
+        setSelectedUser(null);
+        setSubroleOptions([]);
+        setSelectedSubrole(null);
+        setActiveMenu(null);
+        
+        // Refresh team structure
+        await fetchTeamStructure();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to add subrole');
+      }
+    } catch (err) {
+      console.error('❌ Error adding subrole:', err);
+      alert(`Error adding subrole: ${err.message}`);
+    }
+  };
 
   const fetchTeamStructure = async () => {
     try {
@@ -115,11 +319,18 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     }
   };
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (statusFilters = ['todo', 'in_progress']) => {
     try {
-      console.log('🔄 [TeamStructure] Fetching tasks for idea:', ideaId);
+      console.log('🔄 [TeamStructure] Fetching tasks for idea:', ideaId, 'with filters:', statusFilters);
       
-      const response = await apiRequest(`/api/tasks/idea/${ideaId}`);
+      // Build query parameters for status filtering
+      const queryParams = new URLSearchParams();
+      statusFilters.forEach(status => {
+        queryParams.append('status', status);
+      });
+      
+      const url = `/api/tasks/idea/${ideaId}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await apiRequest(url);
       
       if (response.ok) {
         const result = await response.json();
@@ -130,7 +341,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
         
         if (Array.isArray(fetchedTasks)) {
           setTasks(fetchedTasks);
-          console.log('✅ [TeamStructure] Tasks loaded from API:', fetchedTasks.length);
+          console.log('✅ [TeamStructure] Tasks loaded from API:', fetchedTasks.length, 'with filters:', statusFilters);
         } else {
           console.warn('⚠️ [TeamStructure] Invalid tasks data structure:', result);
           setTasks([]);
@@ -150,6 +361,11 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     console.log('✅ [TeamStructure] New task added:', newTask);
     setTasks(prev => [newTask, ...prev]);
     setShowTaskModal(false);
+  };
+
+  const handleFilterChange = (statusFilters) => {
+    console.log('🔄 [TeamStructure] Filter changed to:', statusFilters);
+    fetchTasks(statusFilters);
   };
 
   const handleTaskUpdate = async (taskId, updates) => {
@@ -296,6 +512,10 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
 
   const { teamMetrics, teamStructure, permissions, author, ideaTitle } = teamData;
 
+  // Debug logging for user matching
+  console.log('🔍 [TeamStructure] Current user:', user?._id);
+  console.log('🔍 [TeamStructure] Team members:', teamStructure.teamComposition.map(m => ({ id: m.user._id, name: m.user.fullName })));
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
@@ -342,7 +562,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
                 { id: 'tasks', label: 'Tasks', icon: 'M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4v6m5-6v6m-5 0V5a2 2 0 012-2h2a2 2 0 012 2v0' },
                 { id: 'feed', label: 'Feed', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
                 { id: 'files', label: 'Files', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
-                ...(permissions.canManageTeam ? [{ id: 'performance', label: 'Performance', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z M13 10V3L4 14h7v7l9-11h-7z', authorOnly: true }] : [])
+                { id: 'performance', label: 'Performance', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 713.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 713.138-3.138z', authorOnly: true }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -434,30 +654,78 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
             <h3 className="text-sm font-medium text-gray-900 uppercase tracking-wide mb-4">Current Team</h3>
             <div className="space-y-0">
               {teamStructure.teamComposition.map((member) => (
-                <div 
-                  key={member._id} 
-                  className="py-4 border-b border-gray-100 last:border-b-0"
-                  style={{ display: 'flex', alignItems: 'center' }}
-                >
-                  <div style={{ flex: '0 0 60%', display: 'flex', alignItems: 'center' }}>
-                    <UserAvatar
-                      userId={member.user._id}
-                      avatarUrl={member.user.avatar}
-                      size={40}
-                      isMentor={member.user.isMentor}
-                      isInvestor={member.user.isInvestor}
-                    />
-                    <div style={{ marginLeft: '16px', minWidth: 0, flex: 1 }}>
-                      <div className="font-medium text-gray-900 text-sm truncate">{member.user.fullName}</div>
-                      <div className="text-xs text-gray-500 truncate">{member.assignedRole}</div>
+                <div key={member._id}>
+                  <div 
+                    className="py-4 border-b border-gray-100 last:border-b-0 relative"
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
+                    <div style={{ flex: '0 0 50%', display: 'flex', alignItems: 'center' }}>
+                      <UserAvatar
+                        userId={member.user._id}
+                        avatarUrl={member.user.avatar}
+                        size={40}
+                        isMentor={member.user.isMentor}
+                        isInvestor={member.user.isInvestor}
+                      />
+                      <div style={{ marginLeft: '16px', minWidth: 0, flex: 1 }}>
+                        <div className="font-medium text-gray-900 text-sm truncate">{member.user.fullName}</div>
+                        <div className="text-xs text-gray-500 truncate">{member.assignedRole}</div>
+                      </div>
                     </div>
+                    <div style={{ flex: '0 0 25%', paddingRight: '16px' }} className="text-xs text-gray-500">
+                      {new Date(member.assignedAt).toLocaleDateString()}
+                    </div>
+                    <div style={{ flex: '0 0 15%', textAlign: 'right' }} className="text-xs font-medium text-gray-900">
+                      {member.isLead ? 'LEAD' : 'ACTIVE'}
+                    </div>
+                    
+                    {/* Three-dot menu - only show for current user */}
+                    {String(member.user._id) === String(user?._id) && (
+                      <div className="relative ml-2" ref={activeMenu === member._id ? menuRef : null}>
+                        <button
+                          onClick={() => setActiveMenu(activeMenu === member._id ? null : member._id)}
+                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                          </svg>
+                        </button>
+                        
+                        {/* Dropdown menu */}
+                        {activeMenu === member._id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                            <div className="py-1">
+                              {/* Add Subrole - show for all team members until backend implements canAddSubroles */}
+                              <button
+                                onClick={() => {
+                                  console.log('🔄 [TeamStructure] Opening subrole modal for member:', member);
+                                  setShowSubroleModal(member);
+                                  setSubroleStep('search');
+                                  setActiveMenu(null);
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Add Subrole
+                              </button>
+                              <button
+                                onClick={() => handleLeaveTeam(member._id)}
+                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Leave Team
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ flex: '0 0 25%', paddingRight: '16px' }} className="text-xs text-gray-500">
-                    {new Date(member.assignedAt).toLocaleDateString()}
-                  </div>
-                  <div style={{ flex: '0 0 15%', textAlign: 'right' }} className="text-xs font-medium text-gray-900">
-                    {member.isLead ? 'LEAD' : 'ACTIVE'}
-                  </div>
+                  
                 </div>
               ))}
             </div>
@@ -632,6 +900,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
                 teamMembers={teamStructure.teamComposition}
                 tasks={tasks}
                 onTaskUpdate={handleTaskUpdate}
+                onFilterChange={handleFilterChange}
               />
             </div>
           )}
@@ -668,7 +937,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
             </div>
           )}
 
-          {activeTab === 'performance' && permissions.canManageTeam && (
+          {activeTab === 'performance' && (
             <div className="p-8">
               {/* Performance Header */}
               <div className="flex items-center justify-between mb-6">
@@ -904,6 +1173,180 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
         )}
 
         {/* Task Modal */}
+        {/* Subrole Assignment Modal */}
+        {showSubroleModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-lg">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Add Subrole Member</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Adding subrole under: <strong>{showSubroleModal.user.fullName}</strong> ({showSubroleModal.assignedRole})
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowSubroleModal(null);
+                      setSubroleStep('search');
+                      setSubroleQuery('');
+                      setSearchResults([]);
+                      setSelectedUser(null);
+                      setSubroleOptions([]);
+                      setSelectedSubrole(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {subroleStep === 'search' && (
+                  <div className="space-y-4">
+                    <h3 className="text-md font-medium text-gray-900">Search for User</h3>
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or skills..."
+                      value={subroleQuery}
+                      onChange={(e) => handleSubroleSearch(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                      autoFocus
+                    />
+                    
+                    {searchLoading && (
+                      <div className="text-center py-8 text-gray-500">
+                        Searching users...
+                      </div>
+                    )}
+                    
+                    {!searchLoading && searchResults.length === 0 && subroleQuery.length >= 2 && (
+                      <div className="text-center py-8 text-gray-500">
+                        No users found matching "{subroleQuery}"
+                      </div>
+                    )}
+                    
+                    {!searchLoading && searchResults.length > 0 && (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {searchResults.map((searchUser) => (
+                          <button
+                            key={searchUser._id}
+                            onClick={() => handleUserSelection(searchUser, showSubroleModal)}
+                            className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <UserAvatar
+                              userId={searchUser._id}
+                              avatarUrl={searchUser.avatar}
+                              size={48}
+                            />
+                            <div className="ml-4 flex-1">
+                              <h4 className="text-sm font-medium text-gray-900">{searchUser.name}</h4>
+                              <p className="text-sm text-gray-500">{searchUser.email}</p>
+                              {searchUser.skills && searchUser.skills.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {searchUser.skills.slice(0, 3).map((skill) => (
+                                    <span key={skill} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                                      {skill}
+                                    </span>
+                                  ))}
+                                  {searchUser.skills.length > 3 && (
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                      +{searchUser.skills.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {subroleStep === 'select' && selectedUser && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-900 mb-2">Select Subrole</h3>
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <UserAvatar
+                          userId={selectedUser._id}
+                          avatarUrl={selectedUser.avatar}
+                          size={40}
+                        />
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">Selected user: {selectedUser.name}</p>
+                          <p className="text-xs text-gray-500">{selectedUser.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {subroleOptions.map((option) => (
+                        <button
+                          key={option.title}
+                          onClick={() => setSelectedSubrole(option)}
+                          className={`w-full p-4 border rounded-lg text-left transition-colors ${
+                            selectedSubrole?.title === option.title
+                              ? 'border-gray-900 bg-gray-50'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <h4 className="text-sm font-medium text-gray-900">{option.title}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                          <span className={`inline-block px-2 py-1 text-xs rounded mt-2 ${
+                            option.level === 'senior' ? 'bg-green-100 text-green-700' :
+                            option.level === 'lead' ? 'bg-purple-100 text-purple-700' :
+                            option.level === 'specialist' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {option.level}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                {subroleStep === 'select' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setSubroleStep('search');
+                        setSelectedUser(null);
+                        setSubroleOptions([]);
+                        setSelectedSubrole(null);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleAddSubrole}
+                      disabled={!selectedSubrole}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        selectedSubrole
+                          ? 'text-white bg-gray-900 hover:bg-gray-800'
+                          : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                      }`}
+                    >
+                      Assign Subrole
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {showTaskModal && (
           <TaskModal
             isOpen={showTaskModal}
