@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import UserAvatar from './UserAvatar';
 import ShareButton from './ShareButton';
 import { useUser } from '../UserContext';
+import ConflictResolutionModal from './brainstorming/sections/ConflictResolutionModal';
 
 const infoFields = [
   {
@@ -50,7 +51,7 @@ const mockApproaches = [
   { name: 'Charlie', role: 'UI/UX Designer', avatar: 'C', description: 'I can design user flows and wireframes for your MVP.' },
 ];
 
-function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, isPublicView = false }) {
+function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, isPublicView = false, onNavigateToInbox }) {
   const navigate = useNavigate();
   const { user } = useUser(); // Get current user
   const [showApproachModal, setShowApproachModal] = useState(false);
@@ -356,6 +357,130 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     }
   };
 
+  const handleApproachAction = async (approachId, action, resolution = null) => {
+    try {
+      console.log(`[BrainstormPost] ${action} approach:`, approachId, resolution ? 'with resolution' : '');
+      
+      const requestBody = {
+        status: action
+      };
+      
+      if (resolution) {
+        requestBody.resolution = resolution;
+      }
+      
+      const res = await fetch(`/api/ideas/${post._id}/approaches/${approachId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      
+      const response = await res.json();
+      console.log(`[BrainstormPost] API Response:`, response);
+      
+      // Handle conflict detection (409 status)
+      if (res.status === 409 && response.conflict) {
+        console.log('⚠️ [BrainstormPost] Conflict detected, showing resolution modal');
+        
+        // Show conflict resolution modal
+        setConflictModal({
+          conflictData: response.data.conflictData,
+          approach: response.data.approach,
+          approachId,
+          onResolve: (resolution) => handleApproachAction(approachId, action, resolution),
+          onCancel: () => setConflictModal(null)
+        });
+        return;
+      }
+      
+      if (!res.ok) {
+        throw new Error(response.message || `Failed to ${action} approach`);
+      }
+      
+      // Update local state immediately for better UX
+      setRealApproaches(prevApproaches => 
+        prevApproaches.map(approach => 
+          approach._id === approachId 
+            ? { ...approach, status: action }
+            : approach
+        )
+      );
+      
+      // Close conflict modal if it was open
+      setConflictModal(null);
+      
+      // Handle chat creation for selected approaches
+      if (action === 'selected' && response.success) {
+        let successMessage = '';
+        let chatId = null;
+        let chatName = '';
+        
+        if (response.data?.collaborationChat) {
+          chatId = response.data.collaborationChat.chatId;
+          chatName = response.data.collaborationChat.chatName || post.title;
+          
+          console.log(`✅ [BrainstormPost] Collaboration chat created: ${chatName} (ID: ${chatId})`);
+          
+          // Trigger chat created event for real-time updates
+          window.dispatchEvent(new CustomEvent('chatCreated', {
+            detail: { chatId, chatName, type: 'idea_collaboration' }
+          }));
+          
+          if (resolution) {
+            successMessage = `🎉 Approach accepted with resolution! ${response.data.approach?.user?.fullName} added as ${resolution.suggestedRole || response.data.resolution?.member?.assignedRole}. Collaboration chat "${chatName}" is ready.`;
+          } else {
+            successMessage = `🎉 Approach accepted! Collaboration chat "${chatName}" has been created.`;
+          }
+        } else if (response.data?.collaborationChat?.message === "Collaboration chat already exists") {
+          // Handle existing chat scenario
+          chatId = response.data.collaborationChat.existingChatId;
+          console.log(`ℹ️ [BrainstormPost] Chat already exists: ${chatId}`);
+          successMessage = `✅ Approach accepted! Opening existing collaboration chat.`;
+        } else {
+          successMessage = resolution ? 
+            `🎉 Approach accepted with resolution! ${response.message}` :
+            `✅ Approach accepted! ${response.message}`;
+        }
+        
+        // Close approaches modal
+        setShowApproachesList(false);
+        
+        // Show success notification
+        setErrorMessage(successMessage);
+        setShowErrorPopup(true);
+        
+        // Navigate to inbox after a short delay to show the success message
+        if (chatId && onNavigateToInbox) {
+          setTimeout(() => {
+            console.log(`🚀 [BrainstormPost] Navigating to inbox with chatId: ${chatId}`);
+            onNavigateToInbox(chatId);
+          }, 2000); // Slightly longer delay for resolution messages
+        }
+      } else {
+        console.log(`[BrainstormPost] Successfully ${action} approach`);
+        
+        // Show simple success message for non-selected actions
+        if (action === 'queued') {
+          setErrorMessage('✅ Approach queued for later review.');
+        } else if (action === 'declined') {
+          setErrorMessage('❌ Approach declined.');
+        }
+        
+        if (action !== 'selected') {
+          setShowErrorPopup(true);
+          setTimeout(() => setShowErrorPopup(false), 3000);
+        }
+      }
+      
+    } catch (err) {
+      console.error(`[BrainstormPost] Error ${action} approach:`, err);
+      setErrorMessage(err.message || `Failed to ${action} approach`);
+      setShowErrorPopup(true);
+      setConflictModal(null); // Close conflict modal on error
+    }
+  };
+
   const handleSuggest = async () => {
     if (!suggestionInput.trim()) return;
     try {
@@ -498,6 +623,9 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     signature: ''
   });
   const [ndaAgreementLoading, setNdaAgreementLoading] = useState(false);
+
+  // Conflict resolution state
+  const [conflictModal, setConflictModal] = useState(null);
 
   const handleNDAGenerate = async (e) => {
     e.preventDefault();
@@ -1033,7 +1161,7 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
               ) : (
                 <ul className="space-y-0 divide-y divide-gray-100">
                   {validApproaches.map((approach, idx) => (
-                    <li key={approach._id || idx} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0">
+                    <li key={approach._id || idx} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0 group">
                       <UserAvatar
                         userId={approach.user?._id}
                         avatarUrl={approach.user?.avatar}
@@ -1052,11 +1180,58 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
                           <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded px-2 py-0.5">
                             {typeof approach.role === 'string' ? approach.role : ''}
                           </span>
+                          {approach.status && (
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                              approach.status === 'selected' ? 'bg-green-100 text-green-700' :
+                              approach.status === 'queued' ? 'bg-yellow-100 text-yellow-700' :
+                              approach.status === 'declined' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>
+                              {approach.status === 'selected' ? 'Selected' :
+                               approach.status === 'queued' ? 'Queued' :
+                               approach.status === 'declined' ? 'Declined' : 'Pending'}
+                            </span>
+                          )}
                         </div>
                         {approach.description && typeof approach.description === 'string' && (
                           <div className="text-sm text-gray-600 mt-1 whitespace-pre-line">{approach.description}</div>
                         )}
                       </div>
+                      {/* Action buttons - only show if user is the author and approach is pending */}
+                      {isOwnPost && (!approach.status || approach.status === 'pending') && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          {/* Accept */}
+                          <button
+                            onClick={() => handleApproachAction(approach._id, 'selected')}
+                            className="p-2 rounded-full hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors duration-200"
+                            title="Accept this approach"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                          {/* Queue */}
+                          <button
+                            onClick={() => handleApproachAction(approach._id, 'queued')}
+                            className="p-2 rounded-full hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 transition-colors duration-200"
+                            title="Queue this approach"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </button>
+                          {/* Decline */}
+                          <button
+                            onClick={() => handleApproachAction(approach._id, 'declined')}
+                            className="p-2 rounded-full hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors duration-200"
+                            title="Decline this approach"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1645,6 +1820,11 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
             </div>
           </div>
         </div>
+      )}
+
+      {/* Conflict Resolution Modal */}
+      {conflictModal && (
+        <ConflictResolutionModal {...conflictModal} />
       )}
     </div>
   );

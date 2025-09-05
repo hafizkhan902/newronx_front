@@ -115,18 +115,34 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
     }
   };
 
-  // Load profile on component mount
+  // Load profile on component mount if user data is not available
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (!user || !user._id) {
+      console.log('[ProfileSection] No user data in context, loading profile...');
+      loadProfile();
+    } else {
+      console.log('[ProfileSection] User data already available in context:', user);
+      setLoading(false);
+    }
+  }, [user]);
 
   const loadProfile = async () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('[ProfileSection] Starting profile load...');
+      
       const profileData = await ProfileService.getProfile();
-      setUser(profileData);
       console.log('[ProfileSection] Profile loaded successfully:', profileData);
+      
+      // Ensure we have valid profile data
+      if (!profileData || !profileData._id) {
+        console.error('[ProfileSection] Invalid profile data received:', profileData);
+        throw new Error('Invalid profile data received from server');
+      }
+      
+      setUser(profileData);
+      console.log('[ProfileSection] User context updated with profile data');
     } catch (err) {
       console.error('[ProfileSection] Failed to load profile:', err);
       setError(err.message || 'Failed to load profile');
@@ -335,22 +351,30 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
   }
 
   const d = editing ? editData : user;
-  const resumeUrl = d.resumeUrl || d.resume || '';
+  
+  // Add debugging for profile data structure
+  console.log('[ProfileSection] Current profile data (d):', d);
+  
+  const resumeUrl = d?.resumeUrl || d?.resume || '';
   const fixedResumeUrl = resumeUrl
     ? (resumeUrl.startsWith('http://') || resumeUrl.startsWith('https://') ? resumeUrl : 'https://' + resumeUrl)
     : '';
   const resumeValid = isValidUrl(resumeUrl);
-  const roles = d.roles || d.interestedRoles || [];
-  const socialLinks = Array.isArray(d.socialLinks) ? d.socialLinks : [];
+  const roles = d?.roles || d?.interestedRoles || [];
+  const socialLinks = Array.isArray(d?.socialLinks) ? d.socialLinks : [];
   const socialLinksValid = allSocialLinksValid(socialLinks);
-  const joinedText = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : null;
-  const experiences = Array.isArray(d.experience)
+  const joinedText = d?.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : null;
+  const experiences = Array.isArray(d?.experience)
     ? d.experience
-    : Array.isArray(d.experiences)
+    : Array.isArray(d?.experiences)
     ? d.experiences
-    : Array.isArray(d.workExperience)
+    : Array.isArray(d?.workExperience)
     ? d.workExperience
     : [];
+  
+  console.log('[ProfileSection] Processed profile fields:', {
+    resumeUrl, roles, socialLinks, joinedText, experiences: experiences.length
+  });
 
   function formatRange(start, end) {
     const fmt = (val) => {
@@ -371,7 +395,15 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
   return (
     <div className="max-w-4xl mx-auto w-full">
       {/* Top actions */}
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-between mb-3">
+        <button 
+          className="text-xs text-gray-500 hover:underline" 
+          onClick={loadProfile}
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh Profile'}
+        </button>
+        <div className="flex">
         {editing ? (
           <>
             <button className="text-xs text-gray-500 hover:underline mr-2" onClick={handleCancel} disabled={saving}>Cancel</button>
@@ -401,6 +433,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
         ) : (
           <button className="text-xs text-blue-600 hover:underline font-medium px-2 py-1 border border-blue-100 rounded" onClick={handleEdit}>Edit Profile</button>
         )}
+        </div>
       </div>
 
       {/* Two-column layout */}
@@ -426,7 +459,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
                 </>
               ) : (
                 <>
-                  <div className="text-base font-semibold text-gray-900">{d.fullName || d.name}</div>
+                  <div className="text-base font-semibold text-gray-900">{d?.fullName || d?.name || 'No Name'}</div>
                   <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                     <span className={`w-2 h-2 rounded-full ${statusColors[currentStatus]}`}></span>
                     <span>{statusLabels[currentStatus]}</span>
@@ -443,7 +476,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
               {editing ? (
                 <input type="email" className="border border-gray-200 rounded px-2 py-1 text-xs w-full" value={d.email || ''} onChange={e => setEditData({ ...editData, email: e.target.value })} placeholder="Email"/>
               ) : (
-                <span>{d.email}</span>
+                <span>{d?.email || 'No email'}</span>
               )}
             </li>
             <li className="flex items-center gap-2">
@@ -451,7 +484,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
               {editing ? (
                 <input type="text" className="border border-gray-200 rounded px-2 py-1 text-xs w-full" value={d.phone || ''} onChange={e => setEditData({ ...editData, phone: e.target.value })} placeholder="Phone" />
               ) : (
-                <span>{d.phone || '—'}</span>
+                <span>{d?.phone || '—'}</span>
               )}
             </li>
             <li className="flex items-center gap-2">
@@ -462,7 +495,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
                   <input type="text" className="border border-gray-200 rounded px-2 py-1 text-xs w-1/2" value={d.country || ''} onChange={e => setEditData({ ...editData, country: e.target.value })} placeholder="Country" />
                 </div>
               ) : (
-                <span>{[d.city, d.country].filter(Boolean).join(', ') || '—'}</span>
+                <span>{[d?.city, d?.country].filter(Boolean).join(', ') || '—'}</span>
               )}
             </li>
             <li className="flex items-center gap-2">
@@ -497,7 +530,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
             {editing ? (
               <textarea className="w-full border border-gray-200 rounded px-2 py-2 text-sm" value={d.bio || ''} onChange={e => setEditData({ ...editData, bio: e.target.value })} placeholder="Bio" rows={3} />
             ) : (
-              <div className="text-sm text-gray-700">{d.bio || '—'}</div>
+              <div className="text-sm text-gray-700">{d?.bio || '—'}</div>
             )}
           </div>
 
@@ -508,7 +541,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
               {editing && <button className="text-xs text-blue-600 hover:underline" onClick={() => setEditData({ ...editData, skills: [] })}>Clear</button>}
             </div>
             <div className="flex flex-wrap gap-2">
-              {(d.skills || []).map((skill, idx) => (
+              {(d?.skills || []).map((skill, idx) => (
                 <span key={idx} className="profile-chip">{skill}</span>
               ))}
               {editing && (
@@ -572,10 +605,27 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
           {/* Documents & Actions */}
           <div className="bg-white border border-gray-200 rounded p-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Documents & Actions</h3>
+            {editing ? (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Resume URL</label>
+                <input 
+                  type="url" 
+                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm" 
+                  value={editData?.resumeUrl || editData?.resume || ''} 
+                  onChange={e => setEditData({ ...editData, resumeUrl: e.target.value })} 
+                  placeholder="https://example.com/my-resume.pdf" 
+                />
+                {!resumeValid && resumeUrl && (
+                  <p className="text-xs text-red-500 mt-1">Please enter a valid URL</p>
+                )}
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <a href={fixedResumeUrl || '#'} target={fixedResumeUrl ? '_blank' : undefined} rel={fixedResumeUrl ? 'noopener noreferrer' : undefined} className={`flex items-center justify-center px-4 py-3 rounded profile-action-primary ${fixedResumeUrl ? '' : 'opacity-50 cursor-not-allowed'}`} onClick={e => { if (!fixedResumeUrl) e.preventDefault(); }}>
-                <span className="text-sm font-medium">Download Resume</span>
-              </a>
+              {!editing && (
+                <a href={fixedResumeUrl || '#'} target={fixedResumeUrl ? '_blank' : undefined} rel={fixedResumeUrl ? 'noopener noreferrer' : undefined} className={`flex items-center justify-center px-4 py-3 rounded profile-action-primary ${fixedResumeUrl ? '' : 'opacity-50 cursor-not-allowed'}`} onClick={e => { if (!fixedResumeUrl) e.preventDefault(); }}>
+                  <span className="text-sm font-medium">Download Resume</span>
+                </a>
+              )}
               <button className="flex items-center justify-center px-4 py-3 rounded profile-action-secondary" onClick={() => setShowNDASignings(v => !v)}>
                 <span className="text-sm font-medium">{showNDASignings ? 'Hide Agreements' : 'View Agreements'}</span>
               </button>

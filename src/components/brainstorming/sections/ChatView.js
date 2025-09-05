@@ -3,6 +3,7 @@ import { useUser } from '../../../UserContext';
 import UserAvatar from '../../UserAvatar';
 import { useChatMessages } from '../../../hooks/useChatMessages';
 import { apiRequest } from '../../../utils/api';
+import TeamStructureDashboard from './TeamStructureDashboard';
 
 import MessageStatusIndicator from './MessageStatusIndicator';
 
@@ -10,7 +11,9 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
   const { user } = useUser();
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [showTeamManagement, setShowTeamManagement] = useState(false);
   const messagesEndRef = useRef(null);
+  const markAsReadTimeoutRef = useRef(null); // Prevent multiple rapid calls
   const typingTimeoutRef = useRef(null);
   
   const { 
@@ -20,6 +23,7 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
     connected,
     sendMessage: sendApiMessage,
     refreshMessages,
+    markMessageAsRead,
     setTypingState
   } = useChatMessages(chat._id, user);
 
@@ -35,31 +39,23 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
   const markChatAsRead = useCallback(async () => {
     if (!chat) return;
 
-    try {
-      // Immediately update parent component about read status
-      if (onUpdateUnreadCount) {
-        onUpdateUnreadCount(chat._id, 0);
-        console.log('🔄 Marked chat as read locally:', chat._id);
-      }
-
-      // Skip server update for now to prevent ERR_INSUFFICIENT_RESOURCES
-      // TODO: Re-enable once backend is stable
-      console.log('✅ Chat marked as read locally (server update temporarily disabled)');
-      
-      // // Try to update server
-      // const response = await apiRequest(`/api/chats/${chat._id}/read`, {
-      //   method: 'POST'
-      // });
-      // 
-      // if (response.ok) {
-      //   console.log('✅ Chat marked as read on server:', chat._id);
-      // } else {
-      //   console.log('⚠️ Could not mark chat as read on server, but updated locally');
-      // }
-    } catch (err) {
-      console.log('⚠️ Error marking chat as read:', err);
+    // Clear previous timeout to debounce rapid calls
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current);
     }
-  }, [chat, onUpdateUnreadCount]);
+
+    // Debounce the mark as read call to prevent spam
+    markAsReadTimeoutRef.current = setTimeout(() => {
+      try {
+        // Update parent component about read status
+        if (onUpdateUnreadCount) {
+          onUpdateUnreadCount(chat._id, 0);
+        }
+      } catch (err) {
+        console.log('⚠️ Error marking chat as read:', err);
+      }
+    }, 1000); // Wait 1 second before marking as read
+  }, [chat?._id, onUpdateUnreadCount]); // Only depend on chat ID
 
   useEffect(() => {
     if (chat) {
@@ -78,11 +74,14 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
     scrollToBottom();
   }, [messages]);
 
-  // Cleanup typing timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
+      }
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
       }
     };
   }, []);
@@ -235,25 +234,55 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
             </div>
           )}
           
-          <div className="ml-3 flex-1">
-                          <div className="flex items-center justify-between">
+          <div 
+            className={`ml-3 flex-1 ${
+              chat.metadata?.chatType === 'idea_collaboration' 
+                ? 'cursor-pointer hover:bg-gray-50 rounded p-2 -m-2 transition-colors' 
+                : ''
+            }`}
+            onClick={() => {
+              if (chat.metadata?.chatType === 'idea_collaboration' && chat.metadata?.ideaId) {
+                setShowTeamManagement(true);
+              }
+            }}
+            title={chat.metadata?.chatType === 'idea_collaboration' ? 'Click to manage team structure' : ''}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
                 <h3 className="text-sm font-medium text-gray-900">{getChatName()}</h3>
-                <div className="flex items-center space-x-2">
-                  {connected ? (
-                    <div className="flex items-center text-xs text-green-600">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                      <span>Live</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center text-xs text-orange-600">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
-                      <span>Sync</span>
-                    </div>
-                  )}
-                </div>
+                {chat.metadata?.chatType === 'idea_collaboration' && (
+                  <div className="ml-2 flex items-center">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                      💡 Collaboration
+                    </span>
+                    <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                )}
               </div>
+              <div className="flex items-center space-x-2">
+                {connected ? (
+                  <div className="flex items-center text-xs text-green-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                    <span>Live</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-xs text-orange-600">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
+                    <span>Sync</span>
+                  </div>
+                )}
+              </div>
+            </div>
             <p className="text-xs text-gray-500">
-              {chat.type === 'group' ? `${chat.members?.length || 0} members` : 'Direct message'}
+              {chat.metadata?.chatType === 'idea_collaboration' 
+                ? `Team collaboration • Click to manage roles` 
+                : chat.type === 'group' 
+                  ? `${chat.members?.length || 0} members` 
+                  : 'Direct message'
+              }
             </p>
           </div>
         </div>
@@ -269,12 +298,34 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
         ) : messagesError ? (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">{messagesError}</p>
-            <button 
-              onClick={refreshMessages}
-              className="px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-800 transition-colors"
-            >
-              Try Again
-            </button>
+            <div className="space-x-2">
+              <button 
+                onClick={refreshMessages}
+                className="px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-800 transition-colors"
+              >
+                Try Again
+              </button>
+              <button 
+                onClick={async () => {
+                  console.log('🔧 [ChatView] Testing messages API directly for chat:', chat._id);
+                  try {
+                    const response = await fetch(`/api/messages/chat/${chat._id}?page=1&limit=50`, {
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    console.log('🔧 [ChatView] Direct messages API result:', { status: response.status, data });
+                    alert(`Messages API Test\nStatus: ${response.status}\nCheck console for details`);
+                  } catch (err) {
+                    console.error('🔧 [ChatView] Direct messages API failed:', err);
+                    alert(`Messages API Failed: ${err.message}`);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+              >
+                Debug API
+              </button>
+            </div>
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-8">
@@ -393,6 +444,13 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
         </div>
       </form>
 
+      {/* Team Management Modal */}
+      {showTeamManagement && chat.metadata?.ideaId && (
+        <TeamStructureDashboard 
+          ideaId={chat.metadata.ideaId} 
+          onClose={() => setShowTeamManagement(false)} 
+        />
+      )}
 
     </div>
   );

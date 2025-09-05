@@ -4,8 +4,9 @@ import ChatView from './ChatView';
 import NewChatModal from './NewChatModal';
 import UserAvatar from '../../UserAvatar';
 import { apiRequest } from '../../../utils/api';
+import { ChatService } from '../../../services/chatService';
 
-function InboxSection({ onAvatarClick }) {
+function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
   const { user } = useUser();
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +20,59 @@ function InboxSection({ onAvatarClick }) {
     fetchChats();
   }, []);
 
-  // Listen for real-time message events to update chat list
+  // Auto-open specific chat when targetChatId is provided
+  useEffect(() => {
+    if (!targetChatId) return;
+
+    console.log('[InboxSection] Target chat ID received:', targetChatId);
+    
+    // Immediately refresh chat list when targetChatId is set
+    fetchChats(false).then(() => {
+      let retryCount = 0;
+      const maxRetries = 8; // Increased retries
+      const retryInterval = 1500; // Faster retries
+
+      const findAndOpenChat = async () => {
+        console.log(`[InboxSection] Looking for target chat (attempt ${retryCount + 1}/${maxRetries}):`, targetChatId);
+        console.log('[InboxSection] Current chats:', chats.map(c => ({ id: c._id, name: c.name })));
+        
+        // Find the chat by ID
+        const targetChat = chats.find(chat => chat._id === targetChatId);
+        
+        if (targetChat) {
+          console.log('[InboxSection] Found target chat, opening:', targetChat.name || 'Unnamed Chat');
+          handleChatSelect(targetChat);
+          
+          // Notify parent that chat was opened
+          if (onChatOpened) {
+            onChatOpened();
+          }
+          return true; // Success
+        } else {
+          console.log('[InboxSection] Target chat not found, refreshing chat list...');
+          await fetchChats(false); // Silent refresh
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            setTimeout(findAndOpenChat, retryInterval);
+          } else {
+            console.warn('[InboxSection] Failed to find target chat after max retries');
+            console.log('[InboxSection] Final chat list:', chats.map(c => ({ id: c._id, name: c.name })));
+            // Clear the target to avoid infinite retries
+            if (onChatOpened) {
+              onChatOpened();
+            }
+          }
+          return false; // Failed this attempt
+        }
+      };
+
+      // Start the search process immediately
+      findAndOpenChat();
+    });
+  }, [targetChatId]); // Only depend on targetChatId
+
+  // Listen for real-time events to update chat list
   useEffect(() => {
     const handleMessageReceived = (event) => {
       const { chatId, content, fromUserId } = event.detail;
@@ -52,6 +105,14 @@ function InboxSection({ onAvatarClick }) {
       });
     };
 
+    const handleChatCreated = (event) => {
+      const { chatId, chatName, members } = event.detail;
+      console.log('🆕 New chat created:', chatId, chatName);
+      
+      // Refresh chat list to include the new chat
+      fetchChats(false);
+    };
+
     const handleMessageSent = (event) => {
       const { chatId, content } = event.detail;
       console.log('📤 Message sent from inbox for chat:', chatId);
@@ -77,12 +138,14 @@ function InboxSection({ onAvatarClick }) {
 
     window.addEventListener('messageReceived', handleMessageReceived);
     window.addEventListener('messageSent', handleMessageSent);
+    window.addEventListener('chatCreated', handleChatCreated);
 
     return () => {
       window.removeEventListener('messageReceived', handleMessageReceived);
       window.removeEventListener('messageSent', handleMessageSent);
+      window.removeEventListener('chatCreated', handleChatCreated);
     };
-  }, [user, chatUnreadCounts]);
+  }, [user]); // Removed chatUnreadCounts dependency to prevent infinite re-renders
 
   // Polling for chat list updates (fallback for real-time)
   useEffect(() => {
@@ -90,7 +153,7 @@ function InboxSection({ onAvatarClick }) {
       fetchChats(false); // Silent fetch without loading state
     };
 
-    const interval = setInterval(pollChats, 10000); // Poll every 10 seconds
+    const interval = setInterval(pollChats, 30000); // Poll every 30 seconds to reduce API calls
     return () => clearInterval(interval);
   }, []);
 
@@ -101,13 +164,62 @@ function InboxSection({ onAvatarClick }) {
       }
       setError(null);
 
+      console.log('🔄 [InboxSection] Fetching chats from /api/chats...');
       const response = await apiRequest('/api/chats');
+      console.log('📡 [InboxSection] API Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        const fetchedChats = data.chats || [];
+        console.log('📦 [InboxSection] Raw API response:', data);
         
-        console.log('✅ Chats fetched from API:', fetchedChats.length);
+        // Try different possible response structures
+        let fetchedChats = [];
+        if (data && data.data && Array.isArray(data.data.chats)) {
+          // Nested format: { success: true, data: { chats: [...] } }
+          fetchedChats = data.data.chats;
+          console.log('✅ [InboxSection] Found chats in data.data.chats:', fetchedChats.length);
+        } else if (data && Array.isArray(data.chats)) {
+          // Direct format: { chats: [...] }
+          fetchedChats = data.chats;
+          console.log('✅ [InboxSection] Found chats in data.chats:', fetchedChats.length);
+        } else if (data && Array.isArray(data.data)) {
+          // Array in data: { data: [...] }
+          fetchedChats = data.data;
+          console.log('✅ [InboxSection] Found chats in data.data:', fetchedChats.length);
+        } else if (Array.isArray(data)) {
+          // Direct array: [...]
+          fetchedChats = data;
+          console.log('✅ [InboxSection] Found chats as direct array:', fetchedChats.length);
+        } else {
+          console.error('❌ [InboxSection] Unexpected response structure:', {
+            dataType: typeof data,
+            isArray: Array.isArray(data),
+            keys: data ? Object.keys(data) : 'null',
+            hasChats: data && 'chats' in data,
+            hasData: data && 'data' in data,
+            hasNestedChats: data && data.data && 'chats' in data.data,
+            chatsType: data && data.chats ? typeof data.chats : 'undefined',
+            dataType: data && data.data ? typeof data.data : 'undefined',
+            nestedChatsType: data && data.data && data.data.chats ? typeof data.data.chats : 'undefined'
+          });
+          
+          // Set empty array to prevent map error
+          fetchedChats = [];
+        }
+        
+        // Ensure fetchedChats is always an array
+        if (!Array.isArray(fetchedChats)) {
+          console.error('❌ [InboxSection] fetchedChats is not an array:', typeof fetchedChats);
+          fetchedChats = [];
+        }
+        
+        console.log('📋 [InboxSection] Processed chats:', fetchedChats.map(c => ({ 
+          id: c._id, 
+          name: c.name || c.title, 
+          type: c.type,
+          members: c.members?.length || 0,
+          metadata: c.metadata 
+        })));
         
         // Sort chats by last activity
         const sortedChats = fetchedChats.sort((a, b) => 
@@ -116,32 +228,34 @@ function InboxSection({ onAvatarClick }) {
         
         setChats(sortedChats);
 
-        // Initialize unread counts
+        // Initialize unread counts (server endpoint not available, using local state)
         const unreadCounts = {};
         for (const chat of sortedChats) {
-          try {
-                    const unreadResponse = await apiRequest(`/api/chats/${chat._id}/unread-count`);
-            if (unreadResponse.ok) {
-              const unreadData = await unreadResponse.json();
-              unreadCounts[chat._id] = unreadData.count || 0;
-            } else {
-              unreadCounts[chat._id] = 0;
-            }
-          } catch (err) {
-            console.log('⚠️ Could not fetch unread count for chat:', chat._id);
-            unreadCounts[chat._id] = 0;
-          }
+          // Use existing local count or default to 0
+          unreadCounts[chat._id] = chatUnreadCounts[chat._id] || 0;
         }
         setChatUnreadCounts(unreadCounts);
       } else {
-        console.error('❌ Failed to fetch chats:', response.status);
-        setError('Failed to load chats. Please try again.');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Failed to fetch chats:', response.status, errorData);
+        setError(`Failed to load chats (${response.status}): ${errorData.message || response.statusText}`);
         setChats([]);
       }
     } catch (err) {
       console.error('❌ Network error fetching chats:', err);
-      setError('Unable to connect to server. Please check your connection.');
+      
+      let errorMessage = 'Unable to connect to server';
+      if (err.message.includes('fetch')) {
+        errorMessage = 'Cannot connect to backend server. Please check if the server is running.';
+      } else if (err.message.includes('map is not a function')) {
+        errorMessage = 'Server returned invalid data format. Please check backend API response.';
+      } else {
+        errorMessage = `Connection error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
       setChats([]);
+      setChatUnreadCounts({});
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -164,7 +278,11 @@ function InboxSection({ onAvatarClick }) {
   };
 
   const handleUpdateUnreadCount = (chatId, newCount) => {
-    console.log('🔄 Updating unread count for chat:', chatId, '→', newCount);
+    // Only log if count actually changes
+    const currentCount = chatUnreadCounts[chatId] || 0;
+    if (currentCount !== newCount) {
+      console.log('🔄 Updating unread count for chat:', chatId, '→', newCount);
+    }
     
     // Update local state
     setChatUnreadCounts(prev => ({
@@ -172,14 +290,9 @@ function InboxSection({ onAvatarClick }) {
       [chatId]: newCount
     }));
 
-    // Update server (temporarily disabled to prevent resource exhaustion)
-    if (newCount === 0) {
-      console.log('✅ Chat marked as read locally (server update temporarily disabled)');
-      // apiRequest(`/api/chats/${chatId}/read`, {
-      //   method: 'POST'
-      // }).catch(err => {
-      //   console.log('⚠️ Could not mark chat as read on server:', err.message);
-      // });
+    // Server update temporarily disabled to prevent resource exhaustion
+    if (newCount === 0 && currentCount !== 0) {
+      console.log('✅ Chat marked as read locally');
     }
   };
 
@@ -302,21 +415,143 @@ function InboxSection({ onAvatarClick }) {
             </div>
             <h3 className="text-sm font-medium text-gray-900 mb-1">No conversations yet</h3>
             <p className="text-gray-500 mb-4">Start a new conversation to begin messaging</p>
-            <button 
-              onClick={() => setShowNewChatModal(true)}
-              className="px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-800 transition-colors"
-            >
-              Start Conversation
-            </button>
+            <div className="flex gap-2 justify-center">
+              <button 
+                onClick={() => setShowNewChatModal(true)}
+                className="px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-800 transition-colors"
+              >
+                New Chat
+              </button>
+              <button 
+                onClick={() => fetchChats(true)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+              >
+                Refresh
+              </button>
+              <button 
+                onClick={async () => {
+                  console.log('🔧 [DEBUG] Testing API connections...');
+                  
+                  // Test 1: Proxy route
+                  try {
+                    console.log('🔧 [DEBUG] Testing proxy route: /api/chats');
+                    const proxyResponse = await fetch('/api/chats', {
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    const proxyData = await proxyResponse.json();
+                    console.log('✅ [DEBUG] Proxy route result:', { status: proxyResponse.status, data: proxyData });
+                  } catch (proxyErr) {
+                    console.error('❌ [DEBUG] Proxy route failed:', proxyErr);
+                  }
+                  
+                  // Test 2: Direct backend connection
+                  try {
+                    console.log('🔧 [DEBUG] Testing direct backend: http://localhost:2000/api/chats');
+                    const directResponse = await fetch('http://localhost:2000/api/chats', {
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    const directData = await directResponse.json();
+                    console.log('✅ [DEBUG] Direct backend result:', { status: directResponse.status, data: directData });
+                  } catch (directErr) {
+                    console.error('❌ [DEBUG] Direct backend failed:', directErr);
+                  }
+                  
+                  // Test 3: Check if backend is running
+                  try {
+                    console.log('🔧 [DEBUG] Testing backend health...');
+                    const healthResponse = await fetch('http://localhost:2000/health', {
+                      credentials: 'include'
+                    });
+                    console.log('✅ [DEBUG] Backend health:', healthResponse.status);
+                  } catch (healthErr) {
+                    console.error('❌ [DEBUG] Backend not responding:', healthErr);
+                  }
+                  
+                  alert('Check console for detailed debug results');
+                }}
+                className="px-3 py-2 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+              >
+                Debug API
+              </button>
+              <button 
+                onClick={async () => {
+                  console.log('🔧 [ChatService] Testing chat service...');
+                  try {
+                    const data = await ChatService.getChats();
+                    console.log('✅ [ChatService] Success! Data structure:', {
+                      type: typeof data,
+                      isArray: Array.isArray(data),
+                      keys: data ? Object.keys(data) : 'null',
+                      hasChats: data && 'chats' in data,
+                      hasData: data && 'data' in data,
+                      length: Array.isArray(data) ? data.length : 'not array',
+                      chatsLength: data && Array.isArray(data.chats) ? data.chats.length : 'not array',
+                      dataLength: data && Array.isArray(data.data) ? data.data.length : 'not array'
+                    });
+                    alert(`Chat Service Test Complete!\nCheck console for details.\nData type: ${typeof data}\nIs Array: ${Array.isArray(data)}`);
+                  } catch (err) {
+                    console.error('❌ [ChatService] Failed:', err);
+                    alert(`Chat Service Failed: ${err.message}`);
+                  }
+                }}
+                className="px-3 py-2 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+              >
+                Test Service
+              </button>
+            </div>
+            {targetChatId && (
+              <p className="text-xs text-blue-600 mt-2">Looking for chat: {targetChatId}</p>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
             {chats.map((chat) => {
-              const otherUser = getOtherUser(chat);
               const unreadCount = chatUnreadCounts[chat._id] || 0;
+              const isGroupChat = chat.type === 'group' || (chat.members && chat.members.length > 2);
+              const isIdeaCollaboration = chat.metadata?.chatType === 'idea_collaboration';
               
-              if (!otherUser) {
-                return null;
+              // For group chats (especially idea collaboration), show the group name
+              let displayName, displayAvatar, avatarProps;
+              
+              if (isGroupChat || isIdeaCollaboration) {
+                displayName = chat.name || chat.title || '💡 Collaboration Chat';
+                // For group chats, show a group icon or the first member's avatar
+                const otherUser = getOtherUser(chat);
+                if (otherUser) {
+                  displayAvatar = otherUser.avatar;
+                  avatarProps = {
+                    userId: otherUser._id,
+                    avatarUrl: otherUser.avatar,
+                    size: 48,
+                    isMentor: otherUser.isMentor,
+                    isInvestor: otherUser.isInvestor
+                  };
+                } else {
+                  // Fallback for group chats without clear other user
+                  avatarProps = {
+                    userId: 'group',
+                    avatarUrl: null,
+                    size: 48,
+                    isMentor: false,
+                    isInvestor: false
+                  };
+                }
+              } else {
+                // Regular 1-on-1 chat
+                const otherUser = getOtherUser(chat);
+                if (!otherUser) {
+                  return null;
+                }
+                displayName = otherUser.fullName || otherUser.name || 'Unknown User';
+                avatarProps = {
+                  userId: otherUser._id,
+                  avatarUrl: otherUser.avatar,
+                  size: 48,
+                  isMentor: otherUser.isMentor,
+                  isInvestor: otherUser.isInvestor
+                };
               }
 
               return (
@@ -327,20 +562,24 @@ function InboxSection({ onAvatarClick }) {
                 >
                   {/* Avatar */}
                   <div className="relative flex-shrink-0">
-                    <UserAvatar
-                      userId={otherUser._id}
-                      avatarUrl={otherUser.avatar}
-                      size={48}
-                      isMentor={otherUser.isMentor}
-                      isInvestor={otherUser.isInvestor}
-                    />
+                    <UserAvatar {...avatarProps} />
+                    {isIdeaCollaboration && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">💡</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Chat Info */}
                   <div className="ml-3 flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-medium text-gray-900 truncate">
-                        {otherUser.fullName || otherUser.name || 'Unknown User'}
+                        {displayName}
+                        {isIdeaCollaboration && (
+                          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                            Idea
+                          </span>
+                        )}
                       </h3>
                       <div className="flex items-center space-x-2">
                         {chat.lastMessage && (
@@ -356,7 +595,8 @@ function InboxSection({ onAvatarClick }) {
                       </div>
                     </div>
                     <p className="text-sm text-gray-500 truncate mt-1">
-                      {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
+                      {chat.lastMessage ? chat.lastMessage.content : 
+                       isIdeaCollaboration ? 'Collaboration chat created' : 'No messages yet'}
                     </p>
                   </div>
                 </div>

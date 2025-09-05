@@ -4,7 +4,18 @@ import apiService from '../services/apiService';
 class ProfileService {
   static async getProfile() {
     try {
-      return await apiService.getProfile();
+      const response = await apiService.getProfile();
+      console.log('[ProfileService] Raw API response:', response);
+      
+      // Extract profile data from response - handle different response formats
+      const profileData = response.data || response.user || response;
+      console.log('[ProfileService] Extracted profile data:', profileData);
+      
+      // Normalize the profile data for frontend consumption
+      const normalizedData = this.normalizeProfileData(profileData);
+      console.log('[ProfileService] Normalized profile data:', normalizedData);
+      
+      return normalizedData;
     } catch (error) {
       console.error('ProfileService.getProfile error:', error);
       throw new Error('Failed to load profile');
@@ -309,6 +320,39 @@ class ProfileService {
     }
 
     return { isValid: errors.length === 0, errors };
+  }
+
+  // Test method for debugging profile retrieval
+  static async testProfileGet() {
+    try {
+      console.log('[ProfileService] Testing profile GET request...');
+      
+      const response = await fetch('/api/users/profile', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('[ProfileService] Test GET response status:', response.status);
+      console.log('[ProfileService] Test GET response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const data = await response.json().catch(() => ({}));
+      console.log('[ProfileService] Test GET response data:', data);
+      
+      return {
+        success: response.ok,
+        status: response.status,
+        data: data
+      };
+    } catch (error) {
+      console.error('[ProfileService] Test GET error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
 
   // Test method for debugging profile updates

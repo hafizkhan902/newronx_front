@@ -366,6 +366,19 @@ function BrainstormingSection({ hideHeader }) {
     }
   };
 
+  // State for auto-opening specific chat
+  const [targetChatId, setTargetChatId] = useState(null);
+
+  const handleNavigateToInbox = (chatId) => {
+    console.log('[BrainstormingSection] Navigating to inbox with chatId:', chatId);
+    
+    // Store the chatId to auto-open
+    setTargetChatId(chatId);
+    
+    // Switch to inbox feature
+    setActiveFeature('inbox');
+  };
+
   // Guard: If trying to show public profile for logged-in user, show private profile instead
   if (
     activeSection === 'publicProfile' &&
@@ -450,6 +463,7 @@ function BrainstormingSection({ hideHeader }) {
                 posts={posts}
                 onApproach={post => setApproachModal({ open: true, post })}
                 onAvatarClick={handleAvatarClick}
+                onNavigateToInbox={handleNavigateToInbox}
               />
             )}
             {activeFeature === 'new' && (
@@ -486,7 +500,13 @@ function BrainstormingSection({ hideHeader }) {
               />
             )}
 
-            {activeFeature === 'inbox' && <InboxSection onAvatarClick={handleAvatarClick} />}
+            {activeFeature === 'inbox' && (
+              <InboxSection 
+                onAvatarClick={handleAvatarClick} 
+                targetChatId={targetChatId}
+                onChatOpened={() => setTargetChatId(null)}
+              />
+            )}
 
             {activeFeature === 'profile' && (
               <ProfileSection 

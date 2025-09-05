@@ -5,10 +5,10 @@ export const getApiUrl = () => {
 
 // API request wrapper with error handling
 export const apiRequest = async (endpoint, options = {}) => {
-  // If endpoint starts with '/api/', use CRA proxy (same-origin) to ensure cookies work
-  const url = endpoint && endpoint.startsWith('/api/')
-    ? endpoint
-    : `${getApiUrl()}${endpoint}`;
+  // Always use relative URLs for proxy to work correctly
+  const url = endpoint.startsWith('/api/') ? endpoint : `/api${endpoint}`;
+  
+  console.log('🔄 [API] Making request to:', url);
   
   const defaultOptions = {
     credentials: 'include',
@@ -22,18 +22,23 @@ export const apiRequest = async (endpoint, options = {}) => {
 
   try {
     const response = await fetch(url, defaultOptions);
+    console.log('📡 [API] Response status:', response.status, 'for', url);
+    
     if (!response.ok) {
       // Try to extract a meaningful error message from body
       let message = `${response.status} ${response.statusText}`;
       try {
         const data = await response.clone().json();
         message = data.message || data.error || (Array.isArray(data.errors) && data.errors[0]?.msg) || message;
-      } catch {}
+        console.error('❌ [API] Error response body:', data);
+      } catch (parseError) {
+        console.error('❌ [API] Could not parse error response:', parseError);
+      }
       throw new Error(`API request failed: ${message}`);
     }
     return response;
   } catch (error) {
-    console.error(`API Error for ${endpoint}:`, error);
+    console.error(`❌ [API] Network error for ${url}:`, error);
     throw error;
   }
 }; 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BrainstormPost from '../../BrainstormPost';
 
-function FeedSection({ onApproach, onAvatarClick }) {
+function FeedSection({ onApproach, onAvatarClick, onNavigateToInbox }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -130,7 +130,7 @@ function FeedSection({ onApproach, onAvatarClick }) {
       ) : (
         <div className="space-y-4">
           {posts.map((post) => (
-            <BrainstormPost key={post.id} post={post} onAvatarClick={onAvatarClick} />
+            <BrainstormPost key={post.id} post={post} onAvatarClick={onAvatarClick} onNavigateToInbox={onNavigateToInbox} />
           ))}
         </div>
       )}
