@@ -27,11 +27,49 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
   const [selectedSubrole, setSelectedSubrole] = useState(null);
   const menuRef = useRef(null);
   const searchTimeoutRef = useRef(null);
+  
+  // Subroles state
+  const [memberSubroles, setMemberSubroles] = useState({});
 
   useEffect(() => {
     fetchTeamStructure();
     fetchTasks();
   }, [ideaId]);
+
+  // Fetch subroles for all team members
+  const fetchAllSubroles = async (teamComposition) => {
+    try {
+      const subrolePromises = teamComposition.map(async (member) => {
+        try {
+          const response = await apiRequest(`/api/teams/${ideaId}/members/${member._id}/subroles`);
+          if (response.ok) {
+            const data = await response.json();
+            return {
+              memberId: member._id,
+              subroles: data.data?.subroles || []
+            };
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch subroles for member ${member._id}:`, err);
+        }
+        return {
+          memberId: member._id,
+          subroles: []
+        };
+      });
+
+      const results = await Promise.all(subrolePromises);
+      const subrolesMap = {};
+      results.forEach(({ memberId, subroles }) => {
+        subrolesMap[memberId] = subroles;
+      });
+      
+      console.log('✅ [TeamStructure] Subroles loaded:', subrolesMap);
+      setMemberSubroles(subrolesMap);
+    } catch (err) {
+      console.error('❌ Error fetching subroles:', err);
+    }
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -160,6 +198,161 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     }
   };
 
+  const handlePromoteToLead = async (memberId) => {
+    try {
+      // Security check: only allow author to promote members
+      if (String(author._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: Only idea author can promote members');
+        alert('Only the idea author can promote team members.');
+        return;
+      }
+
+      const member = teamData?.teamStructure?.teamComposition?.find(m => m._id === memberId);
+      if (!member) {
+        console.error('❌ [TeamStructure] Member not found');
+        return;
+      }
+
+      if (window.confirm(`Promote ${member.user.fullName} to team leader?`)) {
+        console.log('🔄 [TeamStructure] Promoting member to lead:', memberId);
+        // TODO: Implement promote to lead API call
+        // const response = await apiRequest(`/api/teams/${ideaId}/members/${memberId}/promote`, { method: 'POST' });
+        
+        alert(`${member.user.fullName} promoted to team leader!`);
+        setActiveMenu(null);
+        await fetchTeamStructure();
+      }
+    } catch (err) {
+      console.error('❌ Error promoting member:', err);
+      alert('Error promoting team member. Please try again.');
+    }
+  };
+
+  const handleDemoteFromLead = async (memberId) => {
+    try {
+      // Security check: only allow author to demote members
+      if (String(author._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: Only idea author can demote members');
+        alert('Only the idea author can demote team members.');
+        return;
+      }
+
+      const member = teamData?.teamStructure?.teamComposition?.find(m => m._id === memberId);
+      if (!member) {
+        console.error('❌ [TeamStructure] Member not found');
+        return;
+      }
+
+      if (window.confirm(`Remove leadership from ${member.user.fullName}?`)) {
+        console.log('🔄 [TeamStructure] Demoting member from lead:', memberId);
+        // TODO: Implement demote from lead API call
+        // const response = await apiRequest(`/api/teams/${ideaId}/members/${memberId}/demote`, { method: 'POST' });
+        
+        alert(`${member.user.fullName} is no longer a team leader.`);
+        setActiveMenu(null);
+        await fetchTeamStructure();
+      }
+    } catch (err) {
+      console.error('❌ Error demoting member:', err);
+      alert('Error demoting team member. Please try again.');
+    }
+  };
+
+  const handleRemoveFromTeam = async (memberId) => {
+    try {
+      // Security check: only allow author to remove members
+      if (String(author._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: Only idea author can remove members');
+        alert('Only the idea author can remove team members.');
+        return;
+      }
+
+      const member = teamData?.teamStructure?.teamComposition?.find(m => m._id === memberId);
+      if (!member) {
+        console.error('❌ [TeamStructure] Member not found');
+        return;
+      }
+
+      if (window.confirm(`Remove ${member.user.fullName} from the team? This action cannot be undone.`)) {
+        console.log('🔄 [TeamStructure] Removing member from team using membership ID:', memberId);
+        console.log('🔍 [TeamStructure] Member object:', member);
+        console.log('🔍 [TeamStructure] Member._id (membership ID):', member._id);
+        console.log('🔍 [TeamStructure] Member.user._id (user ID):', member.user._id);
+        console.log('🔍 [TeamStructure] API URL will be:', `/api/teams/${ideaId}/members/${memberId}`);
+        console.log('🔍 [TeamStructure] Current user (author):', user?._id);
+        console.log('🔍 [TeamStructure] Idea author:', author._id);
+        
+        console.log('🚀 [TeamStructure] Making DELETE request...');
+        const response = await apiRequest(`/api/teams/${ideaId}/members/${memberId}`, { 
+          method: 'DELETE' 
+        });
+        console.log('📡 [TeamStructure] Response received:', response.status, response.statusText);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ [TeamStructure] Member removed successfully:', data);
+          alert(`${member.user.fullName} has been removed from the team.`);
+          setActiveMenu(null);
+          await fetchTeamStructure();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('❌ [TeamStructure] Failed to remove member:', errorData);
+          alert(errorData.message || 'Failed to remove team member. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('❌ Error removing member:', err);
+      alert('Error removing team member. Please try again.');
+    }
+  };
+
+  const handleRemoveSubrole = async (subroleId) => {
+    try {
+      // Security check: only allow author to remove subroles
+      if (String(author._id) !== String(user?._id)) {
+        console.error('❌ [TeamStructure] Unauthorized: Only idea author can remove subroles');
+        alert('Only the idea author can remove subroles.');
+        return;
+      }
+
+      // Find the subrole across all members
+      let subroleToRemove = null;
+      let parentMemberId = null;
+      
+      for (const memberId in memberSubroles) {
+        const subrole = memberSubroles[memberId]?.find(s => s._id === subroleId);
+        if (subrole) {
+          subroleToRemove = subrole;
+          parentMemberId = memberId;
+          break;
+        }
+      }
+
+      if (!subroleToRemove) {
+        console.error('❌ [TeamStructure] Subrole not found');
+        return;
+      }
+
+      if (window.confirm(`Remove ${subroleToRemove.user.fullName} from their subrole? This action cannot be undone.`)) {
+        console.log('🔄 [TeamStructure] Removing subrole:', subroleId);
+        // TODO: Implement remove subrole API call
+        // const response = await apiRequest(`/api/teams/${ideaId}/subroles/${subroleId}`, { method: 'DELETE' });
+        
+        alert(`${subroleToRemove.user.fullName} has been removed from their subrole.`);
+        setActiveMenu(null);
+        
+        // Refresh subroles for the parent member
+        if (parentMemberId) {
+          await fetchAllSubroles([{ _id: parentMemberId }]);
+        }
+        await fetchTeamStructure();
+      }
+    } catch (err) {
+      console.error('❌ Error removing subrole:', err);
+      alert('Error removing subrole. Please try again.');
+    }
+  };
+
   const handleAddSubrole = async () => {
     try {
       if (!selectedUser || !selectedSubrole || !showSubroleModal) {
@@ -210,7 +403,17 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
         setSelectedSubrole(null);
         setActiveMenu(null);
         
-        // Refresh team structure
+        // Refresh subroles for the specific parent member
+        const refreshResponse = await apiRequest(`/api/teams/${ideaId}/members/${parentMember._id}/subroles`);
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          setMemberSubroles(prev => ({
+            ...prev,
+            [parentMember._id]: refreshData.data?.subroles || []
+          }));
+        }
+        
+        // Also refresh team structure for any other updates
         await fetchTeamStructure();
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -240,6 +443,11 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
         if (structureData.teamStructure?.rolesNeeded?.length === 0) {
           console.log('🔍 [TeamStructure] No roles found, checking idea for neededRoles...');
           await syncIdeaRoles(structureData);
+        }
+        
+        // Fetch subroles for all team members
+        if (structureData.teamStructure?.teamComposition?.length > 0) {
+          await fetchAllSubroles(structureData.teamStructure.teamComposition);
         }
         
         setError(null);
@@ -513,8 +721,9 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
   const { teamMetrics, teamStructure, permissions, author, ideaTitle } = teamData;
 
   // Debug logging for user matching
-  console.log('🔍 [TeamStructure] Current user:', user?._id);
-  console.log('🔍 [TeamStructure] Team members:', teamStructure.teamComposition.map(m => ({ id: m.user._id, name: m.user.fullName })));
+  console.log('🔍 [TeamStructure] Current user:', user?._id, typeof user?._id);
+  console.log('🔍 [TeamStructure] Team members:', teamStructure.teamComposition.map(m => ({ id: m.user._id, name: m.user.fullName, type: typeof m.user._id })));
+  console.log('🔍 [TeamStructure] Member subroles state:', memberSubroles);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -655,8 +864,9 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
             <div className="space-y-0">
               {teamStructure.teamComposition.map((member) => (
                 <div key={member._id}>
+                  {/* Main Team Member */}
                   <div 
-                    className="py-4 border-b border-gray-100 last:border-b-0 relative"
+                    className="py-4 border-b border-gray-100 relative"
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
                     <div style={{ flex: '0 0 50%', display: 'flex', alignItems: 'center' }}>
@@ -679,8 +889,8 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
                       {member.isLead ? 'LEAD' : 'ACTIVE'}
                     </div>
                     
-                    {/* Three-dot menu - only show for current user */}
-                    {String(member.user._id) === String(user?._id) && (
+                    {/* Three-dot menu - show for current user OR idea author */}
+                    {(String(member.user._id) === String(user?._id) || String(author._id) === String(user?._id)) && (
                       <div className="relative ml-2" ref={activeMenu === member._id ? menuRef : null}>
                         <button
                           onClick={() => setActiveMenu(activeMenu === member._id ? null : member._id)}
@@ -693,39 +903,177 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
                         
                         {/* Dropdown menu */}
                         {activeMenu === member._id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                          <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
                             <div className="py-1">
-                              {/* Add Subrole - show for all team members until backend implements canAddSubroles */}
-                              <button
-                                onClick={() => {
-                                  console.log('🔄 [TeamStructure] Opening subrole modal for member:', member);
-                                  setShowSubroleModal(member);
-                                  setSubroleStep('search');
-                                  setActiveMenu(null);
-                                }}
-                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                Add Subrole
-                              </button>
-                              <button
-                                onClick={() => handleLeaveTeam(member._id)}
-                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Leave Team
-                              </button>
+                              {/* Current user's own options */}
+                              {String(member.user._id) === String(user?._id) && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      console.log('🔄 [TeamStructure] Opening subrole modal for member:', member);
+                                      setShowSubroleModal(member);
+                                      setSubroleStep('search');
+                                      setActiveMenu(null);
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                  >
+                                    <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    Add Subrole
+                                  </button>
+                                  <button
+                                    onClick={() => handleLeaveTeam(member._id)}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                  >
+                                    <svg className="w-4 h-4 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" />
+                                    </svg>
+                                    Leave Team
+                                  </button>
+                                </>
+                              )}
+                              
+                              {/* Author's management options for other members */}
+                              {String(author._id) === String(user?._id) && String(member.user._id) !== String(user?._id) && (
+                                <>
+                                  <div className="px-4 py-2 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                                    Team Management
+                                  </div>
+                                  
+                                  {!member.isLead ? (
+                                    <button
+                                      onClick={() => handlePromoteToLead(member._id)}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 mr-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                      </svg>
+                                      Promote to Leader
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleDemoteFromLead(member._id)}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 mr-3 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                      </svg>
+                                      Remove Leadership
+                                    </button>
+                                  )}
+                                  
+                                  <button
+                                    onClick={() => handleRemoveFromTeam(member._id)}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                  >
+                                    <svg className="w-4 h-4 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Remove from Team
+                                  </button>
+                                </>
+                              )}
+                              
+                              {/* Author's options for their own row */}
+                              {String(author._id) === String(user?._id) && String(member.user._id) === String(user?._id) && (
+                                <button
+                                  onClick={() => {
+                                    console.log('🔄 [TeamStructure] Opening subrole modal for author:', member);
+                                    setShowSubroleModal(member);
+                                    setSubroleStep('search');
+                                    setActiveMenu(null);
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                  <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  Add Subrole
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
-                  
+
+                  {/* Subrole Members - heavily indented and smaller */}
+                  {memberSubroles[member._id] && memberSubroles[member._id].length > 0 && (
+                    <div className="bg-gray-50/70 border-l-4 border-l-blue-200 ml-4">
+                      {memberSubroles[member._id].map((subrole, subroleIndex) => (
+                        <div 
+                          key={subrole._id}
+                          className={`py-2.5 pl-12 pr-4 relative ${subroleIndex !== memberSubroles[member._id].length - 1 ? 'border-b border-gray-200' : ''}`}
+                          style={{ display: 'flex', alignItems: 'center' }}
+                        >
+                          {/* Enhanced connection lines */}
+                          <div className="absolute left-8 top-0 bottom-0 w-px bg-blue-300"></div>
+                          <div className="absolute left-8 top-1/2 w-6 h-px bg-blue-300"></div>
+                          <div className="absolute left-6 top-1/2 w-2 h-2 bg-blue-400 rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
+                          
+                          <div style={{ flex: '0 0 50%', display: 'flex', alignItems: 'center' }}>
+                            <UserAvatar
+                              userId={subrole.user._id}
+                              avatarUrl={subrole.user.avatar}
+                              size={28}
+                              isMentor={subrole.user.isMentor}
+                              isInvestor={subrole.user.isInvestor}
+                            />
+                            <div style={{ marginLeft: '10px', minWidth: 0, flex: 1 }}>
+                              <div className="font-medium text-gray-700 text-xs truncate">{subrole.user.fullName}</div>
+                              <div className="text-xs text-gray-500 truncate flex items-center mt-0.5">
+                                <svg className="w-2.5 h-2.5 mr-1 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                                <span className="text-xs">{subrole.assignedRole}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ flex: '0 0 25%', paddingRight: '16px' }} className="text-xs text-gray-400">
+                            {new Date(subrole.assignedAt).toLocaleDateString()}
+                          </div>
+                          <div style={{ flex: '0 0 15%', textAlign: 'right' }}>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                              SUB
+                            </span>
+                          </div>
+                          
+                          {/* Three-dot menu for subrole - show for current user OR idea author */}
+                          {(String(subrole.user._id) === String(user?._id) || String(author._id) === String(user?._id)) && (
+                            <div className="relative ml-2">
+                              <button
+                                onClick={() => setActiveMenu(activeMenu === subrole._id ? null : subrole._id)}
+                                className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                              >
+                                <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                                </svg>
+                              </button>
+                              
+                              {/* Dropdown menu for subrole */}
+                              {activeMenu === subrole._id && (
+                                <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                                  <div className="py-1">
+                                    <button
+                                      onClick={() => handleLeaveTeam(subrole._id)}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 713 3v1" />
+                                      </svg>
+                                      Leave Subrole
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
