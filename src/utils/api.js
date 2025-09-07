@@ -10,9 +10,14 @@ export const apiRequest = async (endpoint, options = {}) => {
   
   console.log('🔄 [API] Making request to:', url);
   
+  // Don't set Content-Type for FormData - let browser handle it
+  const isFormData = options.body instanceof FormData;
+  
   const defaultOptions = {
     credentials: 'include',
-    headers: {
+    headers: isFormData ? {
+      ...options.headers
+    } : {
       'Content-Type': 'application/json',
       ...options.headers
     },

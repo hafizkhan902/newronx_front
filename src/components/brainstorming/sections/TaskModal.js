@@ -16,6 +16,11 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
   const [tagInput, setTagInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // Attachment states
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentType, setAttachmentType] = useState('file'); // 'file' or 'link'
+  const [linkInput, setLinkInput] = useState('');
 
   const priorityOptions = [
     { 
@@ -85,25 +90,59 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
     setSubmitting(true);
     
     try {
-      // Prepare API payload according to backend specification
-      const apiPayload = {
-        ideaId: ideaId,
-        title: taskData.title.trim(),
-        description: taskData.description.trim() || undefined,
-        priority: taskData.priority,
-        category: taskData.category,
-        estimatedHours: taskData.estimatedHours ? parseFloat(taskData.estimatedHours) : undefined,
-        deadline: taskData.dueDate ? new Date(taskData.dueDate).toISOString() : undefined,
-        assignmentType: taskData.assignedTo === 'everyone' ? 'everyone' : 'specific',
-        assignedUsers: taskData.assignedTo === 'everyone' ? undefined : [taskData.assignedTo],
-        tags: taskData.tags.length > 0 ? taskData.tags : undefined
-      };
+      // Prepare FormData for multipart/form-data request as expected by backend
+      const formData = new FormData();
+      
+      // Basic task fields
+      formData.append('ideaId', ideaId);
+      formData.append('title', taskData.title.trim());
+      if (taskData.description.trim()) {
+        formData.append('description', taskData.description.trim());
+      }
+      formData.append('priority', taskData.priority);
+      formData.append('category', taskData.category);
+      if (taskData.estimatedHours) {
+        formData.append('estimatedHours', parseFloat(taskData.estimatedHours).toString());
+      }
+      if (taskData.dueDate) {
+        formData.append('deadline', new Date(taskData.dueDate).toISOString());
+      }
+      
+      // Assignment
+      formData.append('assignmentType', taskData.assignedTo === 'everyone' ? 'everyone' : 'specific');
+      if (taskData.assignedTo !== 'everyone') {
+        formData.append('assignedUsers', JSON.stringify([taskData.assignedTo]));
+      }
+      
+      // Tags (as comma-separated string as shown in curl example)
+      if (taskData.tags.length > 0) {
+        formData.append('tags', taskData.tags.join(','));
+      }
+      
+      // Handle attachments
+      const links = [];
+      attachments.forEach((attachment) => {
+        if (attachment.type === 'file') {
+          // Add file attachments
+          formData.append('attachments', attachment.file);
+        } else if (attachment.type === 'link') {
+          // Collect links
+          links.push(attachment.url);
+        }
+      });
+      
+      // Add links array if any
+      if (links.length > 0) {
+        formData.append('links', JSON.stringify(links));
+      }
 
-      console.log('🔄 Creating task with payload:', apiPayload);
+      console.log('🔄 Creating task with FormData...');
 
       const response = await apiRequest('/api/tasks', {
         method: 'POST',
-        body: JSON.stringify(apiPayload)
+        body: formData,
+        // Remove Content-Type header to let browser set it with boundary for multipart
+        headers: {}
       });
 
       if (response.ok) {
@@ -127,6 +166,15 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
           category: 'general'
         });
         setTagInput('');
+        
+        // Clean up attachments
+        attachments.forEach(att => {
+          if (att.type === 'file' && att.url) {
+            URL.revokeObjectURL(att.url);
+          }
+        });
+        setAttachments([]);
+        setLinkInput('');
         
       } else {
         const errorData = await response.json();
@@ -155,6 +203,104 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
+  };
+
+  const handleFileUpload = (e) => {
+    const files = Array.from(e.target.files);
+    
+    files.forEach(file => {
+      // Validate file type (PDF, images)
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setErrors(prev => ({
+          ...prev,
+          attachment: `File type ${file.type} not supported. Please use PDF or image files.`
+        }));
+        return;
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setErrors(prev => ({
+          ...prev,
+          attachment: 'File size must be less than 10MB'
+        }));
+        return;
+      }
+
+      // Add file to attachments
+      const newAttachment = {
+        id: Date.now() + Math.random(),
+        type: 'file',
+        name: file.name,
+        size: file.size,
+        file: file,
+        url: URL.createObjectURL(file)
+      };
+
+      setAttachments(prev => [...prev, newAttachment]);
+      setErrors(prev => ({ ...prev, attachment: null }));
+    });
+
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const addLink = () => {
+    if (!linkInput.trim()) return;
+
+    // Basic URL validation
+    try {
+      new URL(linkInput.trim());
+    } catch {
+      setErrors(prev => ({
+        ...prev,
+        attachment: 'Please enter a valid URL (e.g., https://example.com)'
+      }));
+      return;
+    }
+
+    const newAttachment = {
+      id: Date.now() + Math.random(),
+      type: 'link',
+      name: linkInput.trim(),
+      url: linkInput.trim()
+    };
+
+    setAttachments(prev => [...prev, newAttachment]);
+    setLinkInput('');
+    setErrors(prev => ({ ...prev, attachment: null }));
+  };
+
+  const removeAttachment = (attachmentId) => {
+    setAttachments(prev => {
+      const attachment = prev.find(att => att.id === attachmentId);
+      if (attachment && attachment.url && attachment.type === 'file') {
+        URL.revokeObjectURL(attachment.url);
+      }
+      return prev.filter(att => att.id !== attachmentId);
+    });
+  };
+
+  const getFileIcon = (fileName) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf': return '📄';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp': return '🖼️';
+      default: return '📎';
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   if (!isOpen) return null;
@@ -309,6 +455,112 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
                       ×
                     </button>
                   </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Attachments */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">
+              Attachments
+            </label>
+            
+            {/* Attachment Type Toggle */}
+            <div className="flex mb-2">
+              <button
+                type="button"
+                onClick={() => setAttachmentType('file')}
+                className={`px-3 py-1 text-xs border-l border-t border-b ${
+                  attachmentType === 'file' 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                📎 File
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttachmentType('link')}
+                className={`px-3 py-1 text-xs border ${
+                  attachmentType === 'link' 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                🔗 Link
+              </button>
+            </div>
+
+            {/* File Upload */}
+            {attachmentType === 'file' && (
+              <div>
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  multiple
+                  className="w-full px-3 py-2 border border-gray-200 focus:outline-none focus:border-gray-900 text-sm file:mr-4 file:py-1 file:px-2 file:border-0 file:text-xs file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  PDF, JPG, PNG, GIF, WebP files up to 10MB
+                </p>
+              </div>
+            )}
+
+            {/* Link Input */}
+            {attachmentType === 'link' && (
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={linkInput}
+                  onChange={(e) => setLinkInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLink())}
+                  className="flex-1 px-3 py-2 border border-gray-200 focus:outline-none focus:border-gray-900 text-sm"
+                  placeholder="https://example.com"
+                />
+                <button
+                  type="button"
+                  onClick={addLink}
+                  className="px-3 py-2 bg-gray-100 text-gray-700 text-sm hover:bg-gray-200 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            )}
+
+            {/* Attachment Error */}
+            {errors.attachment && (
+              <p className="text-red-600 text-xs mt-1">{errors.attachment}</p>
+            )}
+
+            {/* Attachment List */}
+            {attachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 text-sm"
+                  >
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <span className="text-lg">
+                        {attachment.type === 'link' ? '🔗' : getFileIcon(attachment.name)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-gray-900">{attachment.name}</p>
+                        {attachment.type === 'file' && attachment.size && (
+                          <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(attachment.id)}
+                      className="ml-2 text-gray-400 hover:text-red-600 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

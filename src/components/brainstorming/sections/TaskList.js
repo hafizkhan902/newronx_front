@@ -11,6 +11,7 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
     priority: true,
     assignee: true,
     dueDate: true,
+    attachments: true,
     category: false,
     tags: false,
     estimatedHours: false
@@ -19,6 +20,10 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
   const [editValue, setEditValue] = useState('');
   const [batchEditMode, setBatchEditMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
+  
+  // Attachment popup state
+  const [showAttachmentPopup, setShowAttachmentPopup] = useState(null);
+  const [attachmentPopupPosition, setAttachmentPopupPosition] = useState({ x: 0, y: 0 });
 
   const priorityColors = {
     low: '#10B981',      // Green
@@ -288,6 +293,80 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
     return new Date(dateString) < new Date();
   };
 
+  // Attachment utility functions
+  const hasAttachments = (task) => {
+    return task.attachments && Array.isArray(task.attachments) && task.attachments.length > 0;
+  };
+
+  const getAttachmentIcon = (attachment) => {
+    // Handle both frontend format and backend format
+    if (attachment.type === 'link' || attachment.fileType === 'link') return '🔗';
+    
+    // Get filename from either frontend format or backend format
+    const fileName = attachment.name || attachment.originalName || '';
+    const fileType = attachment.fileType || '';
+    
+    // Check fileType first (backend format)
+    if (fileType.includes('pdf')) return '📄';
+    if (fileType.includes('image')) return '🖼️';
+    
+    // Fallback to extension check
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf': return '📄';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp': return '🖼️';
+      default: return '📎';
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const handleAttachmentClick = (event, task) => {
+    if (!hasAttachments(task)) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAttachmentPopupPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top
+    });
+    setShowAttachmentPopup(task._id);
+  };
+
+  const downloadAttachment = (attachment) => {
+    // Handle both frontend format and backend format
+    const isLink = attachment.type === 'link' || attachment.fileType === 'link';
+    const url = attachment.url;
+    const fileName = attachment.name || attachment.originalName || 'attachment';
+    
+    if (isLink) {
+      // Open link in new tab
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      // Download file
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    setShowAttachmentPopup(null);
+  };
+
+  const closeAttachmentPopup = () => {
+    setShowAttachmentPopup(null);
+  };
+
   // Since we're using backend filtering, we can display all returned tasks
   // The backend will filter based on activeFilters
 
@@ -327,6 +406,7 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
             {visibleColumns.priority && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden sm:block">Priority</div>}
             {visibleColumns.assignee && <div className="w-24 sm:w-32 px-1 sm:px-2">Assignee</div>}
             {visibleColumns.dueDate && <div className="w-20 sm:w-24 px-1 sm:px-2">Due</div>}
+            {visibleColumns.attachments && <div className="w-8 px-1 sm:px-2 text-center">📎</div>}
             {visibleColumns.category && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">Category</div>}
             {visibleColumns.estimatedHours && <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">Hours</div>}
             {visibleColumns.tags && <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">Tags</div>}
@@ -517,6 +597,26 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
           </div>
         )}
 
+        {/* Attachments */}
+        {visibleColumns.attachments && (
+          <div className="w-8 px-1 sm:px-2 text-center">
+            {hasAttachments(task) ? (
+              <button
+                onClick={(e) => handleAttachmentClick(e, task)}
+                className="text-sm hover:text-blue-600 transition-colors cursor-pointer"
+                title={`${task.attachments.length} attachment${task.attachments.length > 1 ? 's' : ''}`}
+              >
+                📎
+                {task.attachments.length > 1 && (
+                  <span className="text-xs text-gray-500 ml-0.5">{task.attachments.length}</span>
+                )}
+              </button>
+            ) : (
+              <span className="text-gray-300">-</span>
+            )}
+          </div>
+        )}
+
         {/* Category */}
         {visibleColumns.category && (
           <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">
@@ -575,7 +675,12 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" onClick={(e) => {
+      // Close attachment popup when clicking outside
+      if (showAttachmentPopup && !e.target.closest('.attachment-popup') && !e.target.closest('button[title*="attachment"]')) {
+        closeAttachmentPopup();
+      }
+    }}>
       {/* Controls */}
       <div className="flex flex-col space-y-3">
         {/* Filter Controls */}
@@ -637,7 +742,8 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
                   <span className="capitalize text-gray-600">
                     {key === 'dueDate' ? 'Due' : 
                      key === 'estimatedHours' ? 'Hours' : 
-                     key === 'assignee' ? 'Assign' : key}
+                     key === 'assignee' ? 'Assign' :
+                     key === 'attachments' ? 'Files' : key}
                   </span>
                 </label>
               ))}
@@ -717,6 +823,92 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
               : `No tasks found with status: ${activeFilters.join(', ')}.`
             }
           </p>
+        </div>
+      )}
+
+      {/* Attachment Popup */}
+      {showAttachmentPopup && (
+        <div
+          className="attachment-popup fixed bg-white border border-gray-200 shadow-lg z-50 max-w-xs w-64"
+          style={{
+            left: `${attachmentPopupPosition.x - 128}px`, // Center horizontally (w-64 = 256px / 2 = 128px)
+            top: `${attachmentPopupPosition.y - 10}px`, // Position above the button
+            transform: 'translateY(-100%)'
+          }}
+        >
+          {/* Popup Arrow */}
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+            <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-0.5">
+              <div className="w-0 h-0 border-l-3 border-r-3 border-t-3 border-transparent border-t-white"></div>
+            </div>
+          </div>
+
+          {/* Popup Header */}
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-900">Attachments</h3>
+            <button
+              onClick={closeAttachmentPopup}
+              className="text-gray-400 hover:text-gray-600 text-sm"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Attachment List */}
+          <div className="max-h-48 overflow-y-auto">
+            {(() => {
+              const task = tasks.find(t => t._id === showAttachmentPopup);
+              if (!task || !hasAttachments(task)) return null;
+
+              return task.attachments.map((attachment, index) => (
+                <div
+                  key={index}
+                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0"
+                  onClick={() => downloadAttachment(attachment)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg flex-shrink-0">
+                      {getAttachmentIcon(attachment)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 truncate" title={attachment.name || attachment.originalName}>
+                        {attachment.name || attachment.originalName}
+                      </p>
+                      {(attachment.size || attachment.fileSize) && (
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(attachment.size || attachment.fileSize)}
+                        </p>
+                      )}
+                      {(attachment.type === 'link' || attachment.fileType === 'link') && (
+                        <p className="text-xs text-blue-600 truncate" title={attachment.url}>
+                          {attachment.url}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* Popup Footer */}
+          <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500 text-center">
+            Click to {(() => {
+              const task = tasks.find(t => t._id === showAttachmentPopup);
+              if (!task || !hasAttachments(task)) return 'view';
+              const hasFiles = task.attachments.some(att => att.type === 'file' || (att.fileType && att.fileType !== 'link'));
+              const hasLinks = task.attachments.some(att => att.type === 'link' || att.fileType === 'link');
+              if (hasFiles && hasLinks) return 'download/open';
+              if (hasFiles) return 'download';
+              return 'open';
+            })()} attachment
+          </div>
         </div>
       )}
     </div>
