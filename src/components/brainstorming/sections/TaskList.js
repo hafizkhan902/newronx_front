@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import UserAvatar from '../../UserAvatar';
 import { useUser } from '../../../UserContext';
+import { apiRequest } from '../../../utils/api';
 
 const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) => {
   const { user } = useUser();
@@ -90,6 +91,38 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
     });
     setSelectedTasks(new Set());
     setBatchEditMode(false);
+  };
+
+  const deleteTask = async (taskId) => {
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
+
+    if (window.confirm(`Delete task "${task.title}"? This action cannot be undone.`)) {
+      try {
+        console.log('🔄 [TaskList] Deleting task:', taskId);
+        
+        // Make direct API call to DELETE /api/tasks/{taskId}
+        const response = await apiRequest(`/api/tasks/${taskId}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ [TaskList] Task deleted successfully:', result);
+          
+          // Refresh the task list by calling the parent's filter change to reload tasks
+          if (onFilterChange) {
+            onFilterChange(activeFilters);
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to delete task');
+        }
+      } catch (error) {
+        console.error('❌ [TaskList] Failed to delete task:', error);
+        alert(`Failed to delete task: ${error.message}`);
+      }
+    }
   };
 
   const selectAllTasks = () => {
@@ -410,6 +443,7 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
             {visibleColumns.category && <div className="w-16 sm:w-20 px-1 sm:px-2 hidden md:block">Category</div>}
             {visibleColumns.estimatedHours && <div className="w-12 sm:w-16 px-1 sm:px-2 hidden lg:block">Hours</div>}
             {visibleColumns.tags && <div className="w-24 sm:w-32 px-1 sm:px-2 hidden lg:block">Tags</div>}
+            <div className="w-8 px-1 sm:px-2 text-center">🗑️</div>
           </div>
         </div>
 
@@ -670,6 +704,19 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
             </div>
           </div>
         )}
+
+        {/* Delete Button */}
+        <div className="w-8 px-1 sm:px-2 flex justify-center">
+          <button
+            onClick={() => deleteTask(task._id)}
+            className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+            title="Delete task"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     );
   };
@@ -776,7 +823,7 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
                 className="text-xs px-2 py-1 border border-blue-300 bg-white"
                 defaultValue=""
               >
-                <option value="">Batch Status Update (PUT)</option>
+                <option value="">Batch Status Update</option>
                 {statusOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     Set to {option.label}
@@ -793,7 +840,7 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
                 className="text-xs px-2 py-1 border border-blue-300 bg-white"
                 defaultValue=""
               >
-                <option value="">Batch Priority Update (PUT)</option>
+                <option value="">Batch Priority Update</option>
                 {priorityOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     Set to {option.label}

@@ -111,6 +111,21 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       // Assignment
       formData.append('assignmentType', taskData.assignedTo === 'everyone' ? 'everyone' : 'specific');
       if (taskData.assignedTo !== 'everyone') {
+        console.log('🔍 [TaskModal] Assigning to user:', taskData.assignedTo);
+        console.log('🔍 [TaskModal] Available team members:', teamMembers.map(m => ({ id: m.user._id, name: m.user.fullName })));
+        
+        // Validate user ID
+        if (!taskData.assignedTo || taskData.assignedTo.trim() === '') {
+          throw new Error('Invalid user ID: User ID is empty');
+        }
+        
+        // Check if selected user is in team members
+        const selectedMember = teamMembers.find(m => m.user._id === taskData.assignedTo);
+        if (!selectedMember) {
+          throw new Error(`Selected user (${taskData.assignedTo}) is not in the team members list`);
+        }
+        
+        console.log('🔍 [TaskModal] Selected member:', selectedMember.user.fullName);
         formData.append('assignedUsers', JSON.stringify([taskData.assignedTo]));
       }
       
@@ -137,6 +152,10 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       }
 
       console.log('🔄 Creating task with FormData...');
+      console.log('🔍 [TaskModal] FormData contents:');
+      for (let pair of formData.entries()) {
+        console.log(`  ${pair[0]}: ${pair[1]}`);
+      }
 
       const response = await apiRequest('/api/tasks', {
         method: 'POST',
