@@ -24,7 +24,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
   // Team member menu states
   const [activeMenu, setActiveMenu] = useState(null);
   const [showSubroleModal, setShowSubroleModal] = useState(null);
-  const [subroleStep, setSubroleStep] = useState('search');
+  const [, setSubroleStep] = useState('search');
   const [subroleQuery, setSubroleQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -39,9 +39,7 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     error,
     memberSubroles,
     fetchTeamStructure,
-    syncIdeaRoles,
-    removeRole,
-    setMemberSubroles
+    removeRole
   } = useTeamStructure(ideaId);
 
   const {
@@ -68,11 +66,25 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
+      const timeoutRef = searchTimeoutRef.current;
+      if (timeoutRef) {
+        clearTimeout(timeoutRef);
       }
     };
   }, []);
+
+  // Check if user is authorized for performance tab and redirect if not
+  useEffect(() => {
+    if (teamData && activeTab === 'performance') {
+      const { author } = teamData;
+      const isAuthorCheck = author && user && String(author._id) === String(user._id);
+      
+      if (!isAuthorCheck) {
+        console.warn('⚠️ [TeamStructure] Non-author attempted to access performance tab, redirecting to overview');
+        setActiveTab('overview');
+      }
+    }
+  }, [teamData, activeTab, user]);
 
   // Tasks management
   const fetchTasks = useCallback(async (statusFilters = ['todo', 'in_progress']) => {
@@ -258,6 +270,68 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
 
   const { teamMetrics, teamStructure, permissions, author, ideaTitle } = teamData;
 
+  // Check if current user is a team member or author
+  const isAuthor = author && user && String(author._id) === String(user._id);
+  
+  // Enhanced team membership check using both teamComposition and flatComposition
+  const checkMembership = (members) => {
+    if (!members || !Array.isArray(members) || !user) return false;
+    
+    return members.some(member => {
+      if (!member) return false;
+      
+      // Strategy 1: Check member.user._id (main structure)
+      if (member.user && member.user._id) {
+        return String(member.user._id) === String(user._id);
+      }
+      
+      // Strategy 2: Check member._id (if member is the user object directly)
+      if (member._id) {
+        return String(member._id) === String(user._id);
+      }
+      
+      // Strategy 3: Check member.userId (alternative structure)
+      if (member.userId) {
+        return String(member.userId) === String(user._id);
+      }
+      
+      return false;
+    });
+  };
+  
+  const isTeamMember = checkMembership(teamStructure?.teamComposition) || 
+                      checkMembership(teamStructure?.flatComposition) || 
+                      false;
+  
+  const hasTeamAccess = isAuthor || isTeamMember;
+
+  console.log('🔍 [TeamStructure] Enhanced access check:', {
+    userId: user?._id,
+    userEmail: user?.email,
+    authorId: author?._id,
+    isAuthor,
+    isTeamMember,
+    hasTeamAccess,
+    teamComposition: teamStructure?.teamComposition?.map(m => ({
+      memberId: m._id,
+      userId: m.user?._id,
+      userEmail: m.user?.email,
+      name: m.user?.fullName,
+      role: m.assignedRole || m.role
+    })),
+    flatComposition: teamStructure?.flatComposition?.map(m => ({
+      memberId: m._id,
+      userId: m.user?._id,
+      userEmail: m.user?.email,
+      name: m.user?.fullName,
+      role: m.assignedRole || m.role
+    })),
+    checkResults: {
+      teamCompositionCheck: checkMembership(teamStructure?.teamComposition),
+      flatCompositionCheck: checkMembership(teamStructure?.flatComposition)
+    }
+  });
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
@@ -305,7 +379,13 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
                 { id: 'feed', label: 'Feed', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
                 { id: 'files', label: 'Files', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
                 { id: 'performance', label: 'Performance', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 713.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 713.138-3.138z', authorOnly: true }
-              ].map((tab) => (
+              ].filter(tab => {
+                // Filter out author-only tabs for non-authors
+                if (tab.authorOnly) {
+                  return isAuthor;
+                }
+                return true;
+              }).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -378,25 +458,74 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
           )}
 
           {activeTab === 'feed' && (
-            <TeamFeedSection 
-              ideaId={ideaId} 
-              teamMembers={teamData?.teamStructure?.teamComposition || []}
-            />
+            hasTeamAccess ? (
+              <TeamFeedSection 
+                ideaId={ideaId} 
+                teamMembers={teamData?.teamStructure?.teamComposition || []}
+              />
+            ) : (
+              <div className="p-8">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+                  <div className="flex items-center">
+                    <svg className="w-6 h-6 text-amber-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-lg font-medium text-amber-900">Team Access Required</h3>
+                      <p className="text-amber-700 mt-1">You need to be a team member to access the team feed. Please contact the idea author to join the team.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           )}
 
           {activeTab === 'files' && (
-            <TeamFilesSection 
-              ideaId={ideaId} 
-              teamMembers={teamData?.teamStructure?.teamComposition || []}
-            />
+            hasTeamAccess ? (
+              <TeamFilesSection 
+                ideaId={ideaId} 
+                teamMembers={teamData?.teamStructure?.teamComposition || []}
+              />
+            ) : (
+              <div className="p-8">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+                  <div className="flex items-center">
+                    <svg className="w-6 h-6 text-amber-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-lg font-medium text-amber-900">Team Access Required</h3>
+                      <p className="text-amber-700 mt-1">You need to be a team member to access team files. Please contact the idea author to join the team.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           )}
 
           {activeTab === 'performance' && (
-            <TeamPerformanceSection 
-              teamData={teamData}
-              teamStructure={teamStructure}
-              teamMetrics={teamMetrics}
-            />
+            isAuthor ? (
+              <TeamPerformanceSection 
+                ideaId={ideaId}
+                teamData={teamData}
+                teamStructure={teamStructure}
+                teamMetrics={teamMetrics}
+              />
+            ) : (
+              <div className="p-8">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+                  <div className="flex items-center">
+                    <svg className="w-6 h-6 text-amber-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-lg font-medium text-amber-900">Access Restricted</h3>
+                      <p className="text-amber-700 mt-1">Performance analytics are only available to the idea author.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           )}
         </div>
       </div>

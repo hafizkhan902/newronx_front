@@ -23,8 +23,8 @@ const TeamFeedSection = ({ ideaId, teamMembers }) => {
   const [pagination, setPagination] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  // User cache for comment authors
-  const [userCache, setUserCache] = useState({});
+  // User cache for comment authors (keeping for future use)
+  // const [userCache, setUserCache] = useState({});
 
   const fetchTeamPosts = useCallback(async (pageNum = 1) => {
     try {
@@ -106,6 +106,17 @@ const TeamFeedSection = ({ ideaId, teamMembers }) => {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ TeamFeedSection - API Error Response:', errorData);
+        
+        // Check for specific backend authorization errors
+        if (errorData.message && errorData.message.includes('team.some is not a function')) {
+          throw new Error('Team access error: You may not be a member of this team. Please contact the idea author to be added to the team.');
+        }
+        
+        // Check for other common authorization errors
+        if (response.status === 403) {
+          throw new Error('Access denied: You do not have permission to view team posts. Please contact the idea author.');
+        }
+        
         throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (err) {

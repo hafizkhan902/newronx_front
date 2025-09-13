@@ -11,7 +11,7 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
     dueDate: '',
     estimatedHours: '',
     tags: [],
-    category: 'general'
+    category: 'other'
   });
   const [tagInput, setTagInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -56,7 +56,12 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
     { value: 'research', label: '🔍 Research', icon: '🔍' },
     { value: 'planning', label: '📋 Planning', icon: '📋' },
     { value: 'testing', label: '🧪 Testing', icon: '🧪' },
-    { value: 'general', label: '📝 General', icon: '📝' }
+    { value: 'documentation', label: '📚 Documentation', icon: '📚' },
+    { value: 'meeting', label: '👥 Meeting', icon: '👥' },
+    { value: 'review', label: '👁️ Review', icon: '👁️' },
+    { value: 'deployment', label: '🚀 Deployment', icon: '🚀' },
+    { value: 'maintenance', label: '🔧 Maintenance', icon: '🔧' },
+    { value: 'other', label: '📝 Other', icon: '📝' }
   ];
 
   const validateForm = () => {
@@ -66,8 +71,18 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       newErrors.title = 'Task title is required';
     }
     
-    if (!taskData.assignedTo) {
-      newErrors.assignedTo = 'Please assign this task to a team member';
+    if (!taskData.assignedTo || taskData.assignedTo.trim() === '') {
+      newErrors.assignedTo = 'Please select either "Everyone" or a specific team member';
+    } else if (taskData.assignedTo !== 'everyone') {
+      // Validate that the selected user exists in team members
+      const selectedMember = teamMembers.find(m => m.user?._id === taskData.assignedTo);
+      if (!selectedMember) {
+        newErrors.assignedTo = 'Selected user is not a valid team member';
+        console.error('❌ [TaskModal] Validation: User not found in team members:', {
+          searchingFor: taskData.assignedTo,
+          availableMembers: teamMembers.map(m => ({ id: m.user?._id, name: m.user?.fullName }))
+        });
+      }
     }
     
     if (taskData.estimatedHours && (isNaN(taskData.estimatedHours) || taskData.estimatedHours <= 0)) {
@@ -109,29 +124,48 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       }
       
       // Assignment
+      console.log('🔍 [TaskModal] Assignment details:', {
+        assignedTo: taskData.assignedTo,
+        assignedToType: typeof taskData.assignedTo,
+        assignedToLength: taskData.assignedTo?.length,
+        isEveryone: taskData.assignedTo === 'everyone',
+        teamMembersCount: teamMembers?.length
+      });
+      
       formData.append('assignmentType', taskData.assignedTo === 'everyone' ? 'everyone' : 'specific');
-      if (taskData.assignedTo !== 'everyone') {
-        console.log('🔍 [TaskModal] Assigning to user:', taskData.assignedTo);
-        console.log('🔍 [TaskModal] Available team members:', teamMembers.map(m => ({ id: m.user._id, name: m.user.fullName })));
-        
-        // Validate user ID
-        if (!taskData.assignedTo || taskData.assignedTo.trim() === '') {
-          throw new Error('Invalid user ID: User ID is empty');
-        }
+      
+      if (taskData.assignedTo && taskData.assignedTo !== 'everyone' && taskData.assignedTo.trim() !== '') {
+        console.log('🔍 [TaskModal] Assigning to specific user:', taskData.assignedTo);
+        console.log('🔍 [TaskModal] Available team members:', teamMembers.map(m => ({ 
+          id: m.user?._id, 
+          name: m.user?.fullName,
+          role: m.assignedRole 
+        })));
         
         // Check if selected user is in team members
-        const selectedMember = teamMembers.find(m => m.user._id === taskData.assignedTo);
+        const selectedMember = teamMembers.find(m => m.user?._id === taskData.assignedTo);
         if (!selectedMember) {
-          throw new Error(`Selected user (${taskData.assignedTo}) is not in the team members list`);
+          console.error('❌ [TaskModal] User not found in team members:', {
+            searchingFor: taskData.assignedTo,
+            availableMembers: teamMembers.map(m => m.user?._id)
+          });
+          throw new Error(`Selected user is not in the team members list. Please select a valid team member.`);
         }
         
-        console.log('🔍 [TaskModal] Selected member:', selectedMember.user.fullName);
+        console.log('✅ [TaskModal] Selected member found:', selectedMember.user.fullName);
         formData.append('assignedUsers', JSON.stringify([taskData.assignedTo]));
+      } else if (taskData.assignedTo !== 'everyone') {
+        // If no specific user selected and not everyone, show error
+        throw new Error('Please select either "Everyone" or a specific team member to assign the task to.');
       }
       
-      // Tags (as comma-separated string as shown in curl example)
+      // Tags (as individual form fields - backend expects multiple 'tags' fields)
       if (taskData.tags.length > 0) {
-        formData.append('tags', taskData.tags.join(','));
+        taskData.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            formData.append('tags', tag.trim());
+          }
+        });
       }
       
       // Handle attachments
@@ -154,8 +188,17 @@ const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
       console.log('🔄 Creating task with FormData...');
       console.log('🔍 [TaskModal] FormData contents:');
       for (let pair of formData.entries()) {
-        console.log(`  ${pair[0]}: ${pair[1]}`);
+        console.log(`  ${pair[0]}: ${pair[1]} (type: ${typeof pair[1]})`);
       }
+      
+      // Extra validation before sending
+      const assignmentType = formData.get('assignmentType');
+      const assignedUsers = formData.get('assignedUsers');
+      console.log('🔍 [TaskModal] Final assignment check:', {
+        assignmentType,
+        assignedUsers,
+        assignedUsersParsed: assignedUsers ? JSON.parse(assignedUsers) : null
+      });
 
       const response = await apiRequest('/api/tasks', {
         method: 'POST',
