@@ -61,6 +61,7 @@ function FeedSection({ onApproach, onAvatarClick, onNavigateToInbox }) {
           approaches: i.approaches || [],
           suggestions: i.suggestions || [],
           appreciateCount: i.appreciateCount || i.likes || 0,
+          suggestCount: i.suggestCount || 0,
           neededRoles: i.neededRoles || [],
         };
       });

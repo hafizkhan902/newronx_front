@@ -66,6 +66,8 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [suggestionInput, setSuggestionInput] = useState("");
   const [suggestions, setSuggestions] = useState(post.suggestions || []);
+  const [suggestionCount, setSuggestionCount] = useState(post.suggestCount || 0);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   // Error popup state
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -511,6 +513,34 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     }
   };
 
+  // Fetch suggestions from the correct API endpoint
+  const fetchSuggestions = async () => {
+    try {
+      setLoadingSuggestions(true);
+      const res = await fetch(`/api/ideas/${post._id}/suggestions`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSuggestions(data.data.suggestions || []);
+          setSuggestionCount(data.data.pagination?.totalSuggestions || data.data.suggestions?.length || 0);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching suggestions:', err);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // Load suggestions when modal opens
+  useEffect(() => {
+    if (showSuggestModal) {
+      fetchSuggestions();
+    }
+  }, [showSuggestModal, post._id]);
+
   const handleSuggest = async () => {
     if (!suggestionInput.trim()) return;
     try {
@@ -520,14 +550,23 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: suggestionInput })
       });
-      if (!res.ok) throw new Error('Failed to submit suggestion');
-      // Always fetch the latest suggestions from the backend for real-time avatars/names
-      const postRes = await fetch(`/api/ideas/${post._id}`);
-      const updatedPost = await postRes.json();
-      setSuggestions(updatedPost.suggestions || []);
-      setSuggestionInput("");
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to submit suggestion');
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        // Update suggestion count from response
+        setSuggestionCount(data.data.totalSuggestions || suggestionCount + 1);
+        // Refresh suggestions list
+        await fetchSuggestions();
+        setSuggestionInput("");
+      }
     } catch (err) {
-      // Optionally show error
+      console.error('Error submitting suggestion:', err);
+      // Optionally show error to user
     }
   };
 
@@ -1084,7 +1123,7 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
             }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 12v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 16v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 12v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M16 12v.01" /></svg>
-            Suggest <span className="ml-1">{post.suggestCount}</span>
+            Suggest <span className="ml-1">{suggestionCount}</span>
           </button>
           <ShareButton 
             ideaId={post._id} 
@@ -1300,27 +1339,43 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
             </div>
             {/* Suggestions List */}
             <div className="px-6 pb-6">
-              <div className="text-xs text-gray-500 mb-2">Previous Suggestions</div>
-              <ul className="space-y-3 max-h-40 overflow-y-auto">
-                {suggestions.map((s, idx) => (
-                  <li key={s._id || idx} className="bg-gray-50 border border-gray-100 rounded px-3 py-2 text-sm flex items-start gap-3">
-                    <UserAvatar
-                      userId={s.user?._id}
-                      avatarUrl={s.user?.avatar}
-                      size={32}
-                      isMentor={s.user?.isMentor}
-                      isInvestor={s.user?.isInvestor}
-                    />
-                    {/* Name and content */}
-                    <div className="flex-1 min-w-0">
-                      <span className="font-semibold text-gray-700">
-                        {s.user && (s.user.fullName || s.user.name) ? (s.user.fullName || s.user.name) : 'Unknown'}
-                      </span>
-                      <span className="ml-2 text-gray-600">{s.content || s.description || s.text}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="text-xs text-gray-500 mb-2">
+                Previous Suggestions ({suggestionCount})
+              </div>
+              {loadingSuggestions ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-sm text-gray-500">Loading suggestions...</span>
+                </div>
+              ) : suggestions.length > 0 ? (
+                <ul className="space-y-3 max-h-40 overflow-y-auto">
+                  {suggestions.map((s, idx) => (
+                    <li key={s._id || idx} className="bg-gray-50 border border-gray-100 rounded px-3 py-2 text-sm flex items-start gap-3">
+                      <UserAvatar
+                        userId={s.user?._id}
+                        avatarUrl={s.user?.avatar}
+                        size={32}
+                        isMentor={s.user?.isMentor}
+                        isInvestor={s.user?.isInvestor}
+                      />
+                      {/* Name and content */}
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-700">
+                          {s.user && (s.user.fullName || s.user.name) ? (s.user.fullName || s.user.name) : 'Unknown'}
+                        </span>
+                        <span className="ml-2 text-gray-600">{s.content || s.description || s.text}</span>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {new Date(s.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No suggestions yet. Be the first to suggest!
+                </div>
+              )}
             </div>
           </div>
         </div>
