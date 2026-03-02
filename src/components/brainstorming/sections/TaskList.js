@@ -3,9 +3,8 @@ import UserAvatar from '../../UserAvatar';
 import { useUser } from '../../../UserContext';
 import { apiRequest } from '../../../utils/api';
 
-const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) => {
+const TaskList = ({  teamMembers, tasks, onTaskUpdate, onFilterChange }) => {
   const { user } = useUser();
-  const [showCompleted, setShowCompleted] = useState(false);
   const [activeFilters, setActiveFilters] = useState(['todo', 'in_progress']); // Default to show active tasks
   const [visibleColumns, setVisibleColumns] = useState({
     status: true,
@@ -19,19 +18,11 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
   });
   const [editingTask, setEditingTask] = useState(null);
   const [editValue, setEditValue] = useState('');
-  const [batchEditMode, setBatchEditMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
   
   // Attachment popup state
   const [showAttachmentPopup, setShowAttachmentPopup] = useState(null);
   const [attachmentPopupPosition, setAttachmentPopupPosition] = useState({ x: 0, y: 0 });
-
-  const priorityColors = {
-    low: '#10B981',      // Green
-    medium: '#F59E0B',   // Yellow  
-    high: '#EF4444',     // Red
-    urgent: '#8B5CF6'    // Purple
-  };
 
   const statusOptions = [
     { value: 'pending', label: 'To Do', color: '#6B7280' },
@@ -90,7 +81,6 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
       updateMultipleFields(taskId, updates);
     });
     setSelectedTasks(new Set());
-    setBatchEditMode(false);
   };
 
   const deleteTask = async (taskId) => {
@@ -123,11 +113,6 @@ const TaskList = ({ ideaId, teamMembers, tasks, onTaskUpdate, onFilterChange }) 
         alert(`Failed to delete task: ${error.message}`);
       }
     }
-  };
-
-  const selectAllTasks = () => {
-    const allTaskIds = new Set(tasks.map(task => task._id));
-    setSelectedTasks(allTaskIds);
   };
 
   const clearSelection = () => {

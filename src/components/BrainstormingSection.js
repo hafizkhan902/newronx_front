@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from 'react';
-import BrainstormPost from './BrainstormPost';
 import './genie.css'; // Import the custom animation CSS
 import FabMenu from './brainstorming/fab/FabMenu';
 import InboxModal from './brainstorming/inbox/InboxModal';
@@ -114,11 +113,9 @@ const features = [
 ];
 
 function BrainstormingSection({ hideHeader }) {
-  const [showModal, setShowModal] = useState(false);
   const [activeFeature, setActiveFeature] = useState('feed');
-  const [posts, setPosts] = useState(initialMockPosts);
+  const [posts] = useState(initialMockPosts);
   const [phase, setPhase] = useState('main'); // 'main' or 'details'
-  const [menuOpen, setMenuOpen] = useState(null); // post id for which menu is open
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [image, setImage] = useState(null);
   const [pitch, setPitch] = useState('');
@@ -133,7 +130,7 @@ function BrainstormingSection({ hideHeader }) {
     uniqueValue: '',
   });
   const [showFields, setShowFields] = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting] = useState(false);
   const [privacy, setPrivacy] = useState('Public');
   const [approachModal, setApproachModal] = useState({ open: false, post: null });
   const [fabOpen, setFabOpen] = useState(false);
@@ -227,84 +224,10 @@ function BrainstormingSection({ hideHeader }) {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleShowField = (field) => {
-    setShowFields((prev) => {
-      // Only show the clicked field, hide others
-      const newState = {};
-      newState[field] = !prev[field];
-      return newState;
-    });
-  };
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => {
-      setPosts([
-        {
-          id: Date.now(),
-          title: form.title,
-          description: form.description,
-          author: { name: 'You', avatar: 'Y' },
-          time: 'Just now',
-          tags: [],
-          appreciateCount: 0,
-          proposeCount: 0,
-          suggestCount: 0,
-          targetAudience: form.targetAudience,
-          marketAlternatives: form.marketAlternatives,
-          problemStatement: form.problemStatement,
-          uniqueValue: form.uniqueValue,
-        },
-        ...posts,
-      ]);
-      setForm({
-        title: '',
-        description: '',
-        targetAudience: '',
-        marketAlternatives: '',
-        problemStatement: '',
-        uniqueValue: '',
-      });
-      setShowFields({});
-      setActiveFeature('feed');
-      setPhase('main');
-      setSubmitting(false);
-    }, 500);
-  };
-
-  const handleDeletePost = (id) => {
-    setPosts(posts.filter(p => p.id !== id));
-    setMenuOpen(null);
-  };
-
-  // Feature icon row for the creative post UI
-  const postFeatures = [
-    {
-      key: 'targetAudience',
-      label: 'Audience',
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M2 20c0-4 8-6 10-6s10 2 10 6"/></svg>,
-      placeholder: 'Who is this for?'
-    },
-    {
-      key: 'marketAlternatives',
-      label: 'Alternatives',
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="7" width="7" height="7" rx="2" /><rect x="14" y="7" width="7" height="7" rx="2" /><rect x="3" y="17" width="7" height="4" rx="2" /><rect x="14" y="17" width="7" height="4" rx="2" /></svg>,
-      placeholder: 'What are the alternatives?'
-    },
-    {
-      key: 'problemStatement',
-      label: 'Problem',
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" /></svg>,
-      placeholder: 'What problem does it solve?'
-    },
-    {
-      key: 'uniqueValue',
-      label: 'Unique',
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07l-1.41 1.41M6.34 17.66l-1.41 1.41m12.02 0l-1.41-1.41M6.34 6.34L4.93 4.93" /></svg>,
-      placeholder: 'What makes it unique?'
-    },
-  ];
+  // Previously there were local handlers and feature metadata for an older
+  // inline post-creation UI (handleShowField, handleFormSubmit, handleDeletePost,
+  // postFeatures). They are no longer used now that NewPostSection owns that flow,
+  // so they have been removed to keep this component lean.
 
   // Add state and ref for genie effect
   const inboxBtnRef = useRef(null);

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import UserAvatar from './UserAvatar';
 import ShareButton from './ShareButton';
 import { useUser } from '../UserContext';
@@ -44,15 +43,7 @@ const approachRoles = [
   'Other',
 ];
 
-// Add mockApproaches array for demonstration
-const mockApproaches = [
-  { name: 'Alice', role: 'Frontend Developer', avatar: 'A', description: 'I can help build a beautiful and responsive UI.' },
-  { name: 'Bob', role: 'Product Manager', avatar: 'B', description: 'I have experience managing agile teams and product roadmaps.' },
-  { name: 'Charlie', role: 'UI/UX Designer', avatar: 'C', description: 'I can design user flows and wireframes for your MVP.' },
-];
-
 function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, isPublicView = false, onNavigateToInbox }) {
-  const navigate = useNavigate();
   const { user } = useUser(); // Get current user
   const [showApproachModal, setShowApproachModal] = useState(false);
   const [showApproachesList, setShowApproachesList] = useState(false);
@@ -539,7 +530,8 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     if (showSuggestModal) {
       fetchSuggestions();
     }
-  }, [showSuggestModal, post._id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSuggestModal]);
 
   const handleSuggest = async () => {
     if (!suggestionInput.trim()) return;
@@ -662,20 +654,6 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     }));
   };
 
-  // NDA form state and handlers
-  const [ndaForm, setNdaForm] = useState({
-    hasNDA: false,
-    ndaType: 'none',
-    ndaFile: '',
-    ndaGeneratedContent: '',
-    ideaProtection: false
-  });
-
-  const [ndaCompanyName, setNdaCompanyName] = useState('');
-  const [ndaProjectName, setNdaProjectName] = useState('');
-  const [ndaProtectionScope, setNdaProtectionScope] = useState('');
-  const [ndaFile, setNdaFile] = useState(null);
-
   // NDA Protection state
   const [ndaProtection, setNdaProtection] = useState(post.ndaProtection?.enabled || false);
   
@@ -695,114 +673,6 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
 
   // Conflict resolution state
   const [conflictModal, setConflictModal] = useState(null);
-
-  const handleNDAGenerate = async (e) => {
-    e.preventDefault();
-    setNdaLoading(true);
-    
-    try {
-      const res = await fetch(`/api/users/profile/nda/generate`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: ndaCompanyName,
-          projectName: ndaProjectName,
-          protectionScope: ndaProtectionScope
-        })
-      });
-      
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Failed to generate NDA');
-      }
-      
-      const data = await res.json();
-      setNdaForm(data.nda);
-      setShowNDAModal(false);
-      setNdaLoading(false);
-      
-      // Show success message
-      setErrorMessage('NDA generated successfully!');
-      setShowErrorPopup(true);
-      
-    } catch (err) {
-      setErrorMessage(err.message);
-      setShowErrorPopup(true);
-      setNdaLoading(false);
-    }
-  };
-
-  const handleNDAUpload = async (e) => {
-    e.preventDefault();
-    if (!ndaFile) {
-      setErrorMessage('Please select a PDF file');
-      setShowErrorPopup(true);
-      return;
-    }
-    
-    setNdaLoading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('ndaFile', ndaFile);
-
-      const res = await fetch(`/api/users/profile/nda/upload`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-      
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Failed to upload NDA');
-      }
-      
-      const data = await res.json();
-      setNdaForm(data.nda);
-      setShowNDAModal(false);
-      setNdaLoading(false);
-      
-      // Show success message
-      setErrorMessage('NDA uploaded successfully!');
-      setShowErrorPopup(true);
-      
-    } catch (err) {
-      setErrorMessage(err.message);
-      setShowErrorPopup(true);
-      setNdaLoading(false);
-    }
-  };
-
-  const handleNDARemove = async () => {
-    setNdaLoading(true);
-    
-    try {
-      const res = await fetch(`/api/users/profile/nda`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Failed to remove NDA');
-      }
-      
-      const data = await res.json();
-      setNdaForm(data.nda);
-      setShowNDAModal(false);
-      setNdaLoading(false);
-      
-      // Show success message
-      setErrorMessage('NDA removed successfully!');
-      setShowErrorPopup(true);
-      
-    } catch (err) {
-      setErrorMessage(err.message);
-      setShowErrorPopup(true);
-      setNdaLoading(false);
-    }
-  };
 
   // NDA Protection toggle for ideas
   const handleNDAProtectionToggle = async () => {

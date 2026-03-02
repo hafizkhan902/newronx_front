@@ -124,6 +124,7 @@ function ProfileSection({ showMentorInterest, publicProfileUserId, onClosePublic
       console.log('[ProfileSection] User data already available in context:', user);
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadProfile = async () => {

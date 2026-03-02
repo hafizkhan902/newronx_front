@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { useUser } from '../../../UserContext';
 import UserAvatar from '../../UserAvatar';
 
@@ -23,7 +23,7 @@ const TeamOverviewSection = ({
   
   if (!teamData) return null;
 
-  const { teamMetrics, teamStructure, author, ideaTitle } = teamData;
+  const { teamMetrics, teamStructure, author } = teamData;
 
   return (
     <div className="p-8">

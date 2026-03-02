@@ -51,6 +51,8 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
 
   // Close menu when clicking outside
   useEffect(() => {
+    const currentTimeoutRef = searchTimeoutRef.current;
+
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenu(null);
@@ -66,9 +68,8 @@ const TeamStructureDashboard = ({ ideaId, onClose }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      const timeoutRef = searchTimeoutRef.current;
-      if (timeoutRef) {
-        clearTimeout(timeoutRef);
+      if (currentTimeoutRef) {
+        clearTimeout(currentTimeoutRef);
       }
     };
   }, []);

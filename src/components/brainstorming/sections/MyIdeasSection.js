@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import BrainstormPost from '../../BrainstormPost';
-import { Link } from 'react-router-dom';
-import PublicProfile from './PublicProfile';
 import UserAvatar from '../../UserAvatar';
 
 function MyIdeasSection({ userId, contributions = [], userContributions = [], setSelectedUserId, onShowPublicProfile }) {
@@ -15,8 +13,6 @@ function MyIdeasSection({ userId, contributions = [], userContributions = [], se
   const [contribError, setContribError] = useState(null);
   const [showIdeasList, setShowIdeasList] = useState(false);
   const [myIdeas, setMyIdeas] = useState([]);
-  const [showAppreciatedList, setShowAppreciatedList] = useState(false);
-  const [appreciatedIdeas, setAppreciatedIdeas] = useState([]);
   const [showAppreciationsBox, setShowAppreciationsBox] = useState(false);
   const [appreciations, setAppreciations] = useState([]);
   const [appreciationsLoading, setAppreciationsLoading] = useState(false);
@@ -95,13 +91,8 @@ function MyIdeasSection({ userId, contributions = [], userContributions = [], se
         setMyIdeas([]);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showIdeasList]);
-
-  // Fetch user's appreciated ideas for the list only when list is shown
-  useEffect(() => {
-    if (!showAppreciatedList) return;
-    setAppreciatedIdeas(myIdeas.filter(idea => idea.appreciated));
-  }, [showAppreciatedList, myIdeas]);
 
   // Fetch user's approaches for the list only when list is shown
   useEffect(() => {

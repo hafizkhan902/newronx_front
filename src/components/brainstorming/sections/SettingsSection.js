@@ -123,6 +123,7 @@ function SettingsSection() {
     console.log('[SettingsSection] apiService.getThemeSettings:', typeof apiService.getThemeSettings);
     
     loadAllSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Load all settings in parallel
@@ -144,9 +145,9 @@ function SettingsSection() {
   const loadPrivacySettings = async () => {
     try {
       if (typeof apiService.getPrivacySettings === 'function') {
-        const data = await apiService.getPrivacySettings();
-        setPrivacySettings(data.privacy || data || {});
-        setNdaSettings(data.nda || {});
+        const settings = await apiService.getPrivacySettings();
+        setPrivacySettings(settings.privacy || settings || {});
+        setNdaSettings(settings.nda || {});
       } else {
         console.warn('[SettingsSection] getPrivacySettings method not available, using fallback');
         // Fallback to direct fetch
@@ -156,9 +157,9 @@ function SettingsSection() {
           cache: 'no-store'
         });
         if (response.ok) {
-          const data = await response.json();
-          setPrivacySettings(data.privacy || data || {});
-          setNdaSettings(data.nda || {});
+          const privacyData = await response.json();
+          setPrivacySettings(privacyData.privacy || privacyData || {});
+          setNdaSettings(privacyData.nda || {});
         }
       }
     } catch (err) {
@@ -427,22 +428,16 @@ function SettingsSection() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiService.updateEmail({
+      const data = await apiService.updateEmail({
         email: newEmail,
         password: emailPassword
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setSuccess('Email updated successfully');
-        setUser(prev => ({ ...prev, email: newEmail }));
-        setShowEmailModal(false);
-        setNewEmail('');
-        setEmailPassword('');
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Failed to update email');
-      }
+      setSuccess('Email updated successfully');
+      setUser(prev => ({ ...prev, email: data.email || newEmail }));
+      setShowEmailModal(false);
+      setNewEmail('');
+      setEmailPassword('');
     } catch (err) {
       setError('Failed to update email. Please try again.');
     } finally {
@@ -530,24 +525,18 @@ function SettingsSection() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiService.generateNDA({
+      await apiService.generateNDA({
         companyName: ndaCompanyName,
         projectName: ndaProjectName,
         protectionScope: ndaProtectionScope
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSuccess('NDA generated successfully');
-        setNdaSettings(data.nda);
-        setShowNDAGenerateModal(false);
-        setNdaCompanyName('');
-        setNdaProjectName('');
-        setNdaProtectionScope('');
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Failed to generate NDA');
-      }
+      setSuccess('NDA generated successfully');
+      // Reload privacy settings to pick up latest NDA state
+      await loadPrivacySettings();
+      setShowNDAGenerateModal(false);
+      setNdaCompanyName('');
+      setNdaProjectName('');
+      setNdaProtectionScope('');
     } catch (err) {
       setError('Failed to generate NDA. Please try again.');
     } finally {
@@ -597,16 +586,10 @@ function SettingsSection() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiService.removeNDA();
-
-      if (response.ok) {
-        const data = await response.json();
-        setSuccess('NDA removed successfully');
-        setNdaSettings(data.nda);
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Failed to remove NDA');
-      }
+      await apiService.removeNDA();
+      setSuccess('NDA removed successfully');
+      // Reload privacy settings to reflect removal
+      await loadPrivacySettings();
     } catch (err) {
       setError('Failed to remove NDA. Please try again.');
     } finally {

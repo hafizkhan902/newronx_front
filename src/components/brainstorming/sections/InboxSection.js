@@ -18,6 +18,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
 
   useEffect(() => {
     fetchChats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-open specific chat when targetChatId is provided
@@ -70,6 +71,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
       // Start the search process immediately
       findAndOpenChat();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetChatId]); // Only depend on targetChatId
 
   // Listen for real-time events to update chat list
@@ -106,7 +108,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
     };
 
     const handleChatCreated = (event) => {
-      const { chatId, chatName, members } = event.detail;
+      const { chatId, chatName } = event.detail;
       console.log('🆕 New chat created:', chatId, chatName);
       
       // Refresh chat list to include the new chat
@@ -167,6 +169,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
       window.removeEventListener('chatCreated', handleChatCreated);
       window.removeEventListener('chatListUpdate', handleChatListUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]); // Removed chatUnreadCounts dependency to prevent infinite re-renders
 
   // Polling for chat list updates (fallback for real-time)
@@ -177,6 +180,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
 
     const interval = setInterval(pollChats, 30000); // Poll every 30 seconds to reduce API calls
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchChats = async (showLoading = true) => {
@@ -214,14 +218,14 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
           console.log('✅ [InboxSection] Found chats as direct array:', fetchedChats.length);
         } else {
           console.error('❌ [InboxSection] Unexpected response structure:', {
-            dataType: typeof data,
+            rootType: typeof data,
             isArray: Array.isArray(data),
             keys: data ? Object.keys(data) : 'null',
             hasChats: data && 'chats' in data,
             hasData: data && 'data' in data,
             hasNestedChats: data && data.data && 'chats' in data.data,
             chatsType: data && data.chats ? typeof data.chats : 'undefined',
-            dataType: data && data.data ? typeof data.data : 'undefined',
+            dataContainerType: data && data.data ? typeof data.data : 'undefined',
             nestedChatsType: data && data.data && data.data.chats ? typeof data.data.chats : 'undefined'
           });
           
@@ -239,7 +243,7 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
           id: c._id, 
           name: c.name || c.title, 
           type: c.type,
-          members: c.members?.length || 0,
+          membersCount: c.members?.length || 0,
           metadata: c.metadata 
         })));
         
@@ -535,14 +539,13 @@ function InboxSection({ onAvatarClick, targetChatId, onChatOpened }) {
               const isIdeaCollaboration = chat.metadata?.chatType === 'idea_collaboration';
               
               // For group chats (especially idea collaboration), show the group name
-              let displayName, displayAvatar, avatarProps;
+              let displayName, avatarProps;
               
               if (isGroupChat || isIdeaCollaboration) {
                 displayName = chat.name || chat.title || '💡 Collaboration Chat';
                 // For group chats, show a group icon or the first member's avatar
                 const otherUser = getOtherUser(chat);
                 if (otherUser) {
-                  displayAvatar = otherUser.avatar;
                   avatarProps = {
                     userId: otherUser._id,
                     avatarUrl: otherUser.avatar,

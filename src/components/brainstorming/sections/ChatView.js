@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '../../../UserContext';
 import UserAvatar from '../../UserAvatar';
 import { useChatMessages } from '../../../hooks/useChatMessages';
-import { apiRequest } from '../../../utils/api';
 import TeamStructureDashboard from './TeamStructureDashboard';
 
 import MessageStatusIndicator from './MessageStatusIndicator';
@@ -22,10 +21,8 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
     messages,
     loading: messagesLoading,
     error: messagesError,
-    connected,
     sendMessage: sendApiMessage,
     refreshMessages,
-    markMessageAsRead,
     setTypingState
   } = useChatMessages(chat._id, user);
 
@@ -57,6 +54,7 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
         console.log('⚠️ Error marking chat as read:', err);
       }
     }, 1000); // Wait 1 second before marking as read
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat?._id, onUpdateUnreadCount]); // Only depend on chat ID
 
   useEffect(() => {
@@ -154,7 +152,8 @@ function ChatView({ chat, onBack, onAvatarClick, onUpdateUnreadCount }) {
     // Remove common emojis like 💡, 🚀, 💼, etc.
     const cleanName = name
       .replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
-      .replace(/^\s*[\-\•\*\>\<\|\~\`\^\&\%\$\#\@\!\?]*\s*/, '') // Remove leading symbols
+      // Remove common leading symbols used in decorative chat names
+      .replace(/^\s*[-•*>|~`^&%$#@!?]+\s*/, '')
       .trim();
     
     return cleanName || (chat.type === 'group' ? 'Group Chat' : 'Direct Chat');

@@ -27,7 +27,7 @@ export const useTeamActions = (ideaId, teamData, onRefresh) => {
     } catch (err) {
       console.error('❌ Error leaving team:', err);
     }
-  }, [ideaId, teamData, user, onRefresh]);
+  }, [teamData, user, onRefresh]);
 
   const handlePromoteToLead = useCallback(async (memberId) => {
     try {
@@ -57,7 +57,7 @@ export const useTeamActions = (ideaId, teamData, onRefresh) => {
       console.error('❌ Error promoting member:', err);
       alert('Error promoting team member. Please try again.');
     }
-  }, [ideaId, teamData, user, onRefresh]);
+  }, [teamData, user, onRefresh]);
 
   const handleDemoteFromLead = useCallback(async (memberId) => {
     try {
@@ -87,7 +87,7 @@ export const useTeamActions = (ideaId, teamData, onRefresh) => {
       console.error('❌ Error demoting member:', err);
       alert('Error demoting team member. Please try again.');
     }
-  }, [ideaId, teamData, user, onRefresh]);
+  }, [teamData, user, onRefresh]);
 
   const handleRemoveFromTeam = useCallback(async (memberId) => {
     try {

@@ -1,19 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ProfileService from '../utils/profileService';
 
-const validateFile = (file) => {
-  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error('Invalid file type. Please upload an image (JPEG, PNG, or GIF).');
-  }
-
-  if (file.size > MAX_SIZE) {
-    throw new Error('File too large. Maximum size is 5MB.');
-  }
-};
-
 const statusColors = {
   active: 'border-green-500 bg-green-50',
   busy: 'border-yellow-500 bg-yellow-50',

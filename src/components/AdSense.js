@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ADSENSE_CONFIG, getAdSlot, isAdSenseEnabled } from '../config/adsense';
+import { ADSENSE_CONFIG, isAdSenseEnabled } from '../config/adsense';
 
 const AdSense = ({ 
   adSlot, 

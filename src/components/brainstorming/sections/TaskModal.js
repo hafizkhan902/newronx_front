@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { apiRequest } from '../../../utils/api';
-import UserAvatar from '../../UserAvatar';
+
 
 const TaskModal = ({ isOpen, onClose, ideaId, teamMembers, onTaskAdded }) => {
   const [taskData, setTaskData] = useState({

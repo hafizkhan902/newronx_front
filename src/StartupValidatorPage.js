@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import BrainstormingSection from './components/BrainstormingSection';
 import FeedSection from './components/brainstorming/sections/FeedSection';
 import NewPostSection from './components/brainstorming/sections/NewPostSection';
@@ -9,9 +8,7 @@ import ProfileSection from './components/brainstorming/sections/ProfileSection';
 import SettingsSection from './components/brainstorming/sections/SettingsSection';
 import PublicProfile from './components/brainstorming/sections/PublicProfile';
 
-const sections = [
-
-];
+const sections = [];
 // Example mock data for demonstration
 const mockPosts = [
   { id: 1, title: 'Sample Idea', description: 'A cool startup idea', author: { name: 'User', avatar: 'U' } },

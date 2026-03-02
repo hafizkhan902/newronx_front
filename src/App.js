@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useParams } from 'react-router-dom';
 import './index.css';
 import StartupValidatorPage from './StartupValidatorPage';
 import LoginPage from './LoginPage';
@@ -8,7 +8,6 @@ import { useUser } from './UserContext';
 import { ThemeProvider } from './ThemeContext';
 import { HeaderAd, FooterAd, InContentAd } from './components/AdWrapper';
 import PublicIdeaView from './components/PublicIdeaView';
-import UserAvatar from './components/UserAvatar';
 
 const tools = [
   {
@@ -272,80 +271,8 @@ function Placeholder({ name }) {
 }
 
 // Modular subcomponents for public profile
-function PublicAvatarStatus({ avatar, status, fullName, userId, isMentor, isInvestor }) {
-  const statusColors = {
-    active: 'bg-green-500',
-    busy: 'bg-yellow-500',
-    offline: 'bg-gray-400',
-  };
-  const statusLabels = {
-    active: 'Active',
-    busy: 'Busy',
-    offline: 'Offline',
-  };
-  return (
-    <div className="relative inline-block mb-4">
-      <UserAvatar
-        userId={userId}
-        avatarUrl={avatar}
-        size={96}
-        isMentor={isMentor}
-        isInvestor={isInvestor}
-      />
-      <span className={`absolute bottom-2 right-2 w-5 h-5 rounded-full border-2 border-white ${statusColors[status] || 'bg-gray-300'}`}></span>
-    </div>
-  );
-}
-
-function PublicSkills({ skills }) {
-  if (!skills || skills.length === 0) return null;
-  return (
-    <div className="mb-4">
-      <div className="text-xs text-gray-500 mb-1">Skills</div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {skills.map((skill, idx) => (
-          <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-medium">{skill}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PublicRoles({ roles }) {
-  if (!roles || roles.length === 0) return null;
-  return (
-    <div className="mb-4">
-      <div className="text-xs text-gray-500 mb-1">Interested Roles</div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {roles.map((role, idx) => (
-          <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">{role}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PublicSocialLinks({ socialLinks }) {
-  if (!socialLinks || socialLinks.length === 0) return null;
-  return (
-    <div className="mb-4">
-      <div className="text-xs text-gray-500 mb-1">Social Links</div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {socialLinks.map((link, idx) => (
-          <a
-            key={idx}
-            href={link.value}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-xs bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1"
-          >
-            <span className="font-medium">{link.type}</span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
+// Note: public profile helper components originally lived here (avatar/status/skills/roles/links)
+// but were unused. They have been removed to keep the bundle smaller and satisfy lint rules.
 
 function App() {
   const { user, setUser } = useUser();
