@@ -1,7 +1,13 @@
 // services/apiService.js
+const getApiBaseUrl = () => {
+  const envUrl = process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL || '';
+  if (envUrl) return envUrl.replace(/\/$/, '') + '/api';
+  return '/api'; // dev proxy
+};
+
 class ApiService {
   constructor() {
-    this.baseURL = '/api'; // Let dev proxy handle port forwarding
+    this.baseURL = getApiBaseUrl();
   }
 
   // Generic request method with authentication

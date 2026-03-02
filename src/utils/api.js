@@ -1,12 +1,20 @@
 // API configuration utility
 export const getApiUrl = () => {
-  return process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL || 'http://localhost:2000';
+  return process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL || '';
+};
+
+// Base URL for API: use env (production) when set, otherwise relative (dev proxy)
+const getApiBase = () => {
+  const base = getApiUrl();
+  if (!base || base === '') return '';
+  return base.replace(/\/$/, '');
 };
 
 // API request wrapper with error handling
 export const apiRequest = async (endpoint, options = {}) => {
-  // Always use relative URLs for proxy to work correctly
-  const url = endpoint.startsWith('/api/') ? endpoint : `/api${endpoint}`;
+  const path = endpoint.startsWith('/api') ? endpoint : `/api${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  const base = getApiBase();
+  const url = base ? `${base}${path}` : path;
   
   console.log('🔄 [API] Making request to:', url);
   
