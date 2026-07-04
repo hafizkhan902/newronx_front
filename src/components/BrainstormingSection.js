@@ -761,16 +761,6 @@ function BrainstormingSection({ hideHeader }) {
       .slice(0, 8);
   }, [feedPosts]);
 
-  const userStats = useMemo(() => {
-    if (!user?._id) return { ideasPosted: 0, approaches: 0, appreciations: 0, suggestions: 0 };
-    const own = feedPosts.filter(p => String(p.author?._id) === String(user._id));
-    return {
-      ideasPosted: own.length,
-      approaches: own.reduce((s, p) => s + (Array.isArray(p.approaches) ? p.approaches.length : 0), 0),
-      appreciations: own.reduce((s, p) => s + (p.appreciateCount || 0), 0),
-      suggestions: own.reduce((s, p) => s + (p.suggestCount || 0), 0),
-    };
-  }, [feedPosts, user?._id]);
 
   // Featured post = most appreciated
   const featuredPost = useMemo(() => {
