@@ -4,43 +4,34 @@ import UserAvatar from '../../UserAvatar';
 // Helper function
 async function fetchPublicProfile(userId) {
   const url = `/api/users/${userId}/public`;
-  // console.log('[PublicProfile] Fetching public profile:', url, 'for userId:', userId);
-  const response = await fetch(url);
-  // console.log('[PublicProfile] Response status:', response.status);
+  const response = await fetch(url, { credentials: 'include' });
   const text = await response.text();
-  // console.log('[PublicProfile] Raw response text:', text);
   if (!response.ok) {
-    // console.error('[PublicProfile] API error:', response.status, text);
-    throw new Error('Failed to fetch public profile');
+    let msg = `HTTP ${response.status}`;
+    try { msg = JSON.parse(text)?.message || msg; } catch {}
+    throw new Error(msg);
   }
   try {
-    const json = JSON.parse(text);
-    // console.log('[PublicProfile] Parsed JSON:', json);
-    return json;
-  } catch (err) {
-    console.error('[PublicProfile] JSON parse error:', err, text);
-    throw new Error('Failed to parse public profile JSON');
+    return JSON.parse(text);
+  } catch {
+    throw new Error('Failed to parse public profile response');
   }
 }
 
-function PublicProfile({ userId }) {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [userPosts, setUserPosts] = useState([]);
+function PublicProfile({ userId, onClose }) {
+  const [profile,     setProfile]     = useState(null);
+  const [profileErr,  setProfileErr]  = useState('');
+  const [loading,     setLoading]     = useState(true);
+  const [userPosts,   setUserPosts]   = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
-  const [postsError, setPostsError] = useState(null);
+  const [postsError,  setPostsError]  = useState(null);
 
   useEffect(() => {
-    // console.log('[PublicProfile] useEffect triggered for userId:', userId);
+    setLoading(true);
+    setProfileErr('');
     fetchPublicProfile(userId)
-      .then(profile => {
-        setProfile(profile);
-        // console.log('[PublicProfile] Profile set:', profile);
-      })
-      .catch(err => {
-        alert('Error: ' + err.message);
-        // console.error('[PublicProfile] Fetch error:', err);
-      })
+      .then(data => setProfile(data))
+      .catch(err => setProfileErr(err.message))
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -106,8 +97,36 @@ function PublicProfile({ userId }) {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center text-gray-400">Loading...</div>;
-  if (!profile) return <div className="flex items-center justify-center text-gray-400">User not found.</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center py-24 text-gray-400">
+      <svg className="w-6 h-6 animate-spin text-indigo-400 mr-3" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      Loading profile…
+    </div>
+  );
+
+  if (profileErr) return (
+    <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+      <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center">
+        <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-gray-700 mb-1">Could not load public profile</p>
+        <p className="text-xs text-gray-400">{profileErr}</p>
+      </div>
+      {onClose && (
+        <button onClick={onClose} className="mt-2 px-4 py-2 text-sm font-semibold text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-50 transition">
+          ← Go back
+        </button>
+      )}
+    </div>
+  );
+
+  if (!profile) return <div className="flex items-center justify-center py-16 text-gray-400 text-sm">User not found.</div>;
 
   // Status ring color
   const statusRing = profile.status === 'active' ? 'border-green-500' : profile.status === 'busy' ? 'border-yellow-400' : 'border-gray-400';

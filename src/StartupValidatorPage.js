@@ -58,7 +58,7 @@ function StartupValidatorPage() {
   }
 
   return (
-    <main className="bg-white h-screen overflow-y-auto p-0">
+    <main className="bg-zinc-950 min-h-screen overflow-y-auto p-0">
       {/* No explicit header here; BrainstormingSection provides the main header */}
       {/* Only show section tabs if not showing public profile */}
       {!showPublicProfile && (

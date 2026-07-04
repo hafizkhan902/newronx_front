@@ -301,7 +301,6 @@ function SettingsSection() {
         });
         
         if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
           console.log('[Settings] Fresh profile retrieved successfully');
         } else {
           console.error('[Settings] Failed to get fresh profile:', profileResponse.status);
@@ -663,7 +662,6 @@ function SettingsSection() {
       const response = await apiService.sendTestNotification(type);
 
       if (response.ok) {
-        const data = await response.json();
         setSuccess(`${type === 'email' ? 'Email' : 'App'} test notification sent successfully`);
         setShowTestNotificationModal(false);
       } else {

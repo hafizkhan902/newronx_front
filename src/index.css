@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Mobile safe-area utilities ──────────────────────────────────────────── */
+@layer utilities {
+  /* Adds bottom padding equal to iOS home indicator height */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Hide scrollbar while keeping scroll behaviour */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Profile layout specific styles */
 .profile-card {
   border: 1px solid #e5e7eb;

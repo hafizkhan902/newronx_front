@@ -9,28 +9,39 @@ const infoFields = [
     key: 'targetAudience',
     label: 'Audience',
     icon: (
-      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M2 20c0-4 8-6 10-6s10 2 10 6" /></svg>
-    ),
-  },
-  {
-    key: 'marketAlternatives',
-    label: 'Alternatives',
-    icon: (
-      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="7" width="7" height="7" rx="2" /><rect x="14" y="7" width="7" height="7" rx="2" /><rect x="3" y="17" width="7" height="4" rx="2" /><rect x="14" y="17" width="7" height="4" rx="2" /></svg>
+      <svg className="w-3.5 h-3.5 shrink-0 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <circle cx="9" cy="7" r="4" /><path d="M3 21c0-4 2.7-7 6-7h1" strokeLinecap="round" />
+        <circle cx="17" cy="9" r="3" /><path d="M21 21c0-3-1.8-5-4-5" strokeLinecap="round" />
+      </svg>
     ),
   },
   {
     key: 'problemStatement',
     label: 'Problem',
     icon: (
-      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" /></svg>
+      <svg className="w-3.5 h-3.5 shrink-0 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'marketAlternatives',
+    label: 'Rivals',
+    icon: (
+      <svg className="w-3.5 h-3.5 shrink-0 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <rect x="2" y="7" width="8" height="6" rx="1.5" /><rect x="14" y="7" width="8" height="6" rx="1.5" />
+        <rect x="5" y="15" width="8" height="5" rx="1.5" /><rect x="11" y="15" width="8" height="5" rx="1.5" />
+      </svg>
     ),
   },
   {
     key: 'uniqueValue',
     label: 'Unique',
     icon: (
-      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07l-1.41 1.41M6.34 17.66l-1.41 1.41m12.02 0l-1.41-1.41M6.34 6.34L4.93 4.93" /></svg>
+      <svg className="w-3.5 h-3.5 shrink-0 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l1.5 4.5L12 5l5.5 2.5L19 3M12 5v14M5 21h14" />
+        <path strokeLinecap="round" d="M9 12h6M9 16h6" />
+      </svg>
     ),
   },
 ];
@@ -52,7 +63,7 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
   // Appreciation state
   const [appreciated, setAppreciated] = useState(!!post.appreciated);
   const [appreciateCount, setAppreciateCount] = useState(post.appreciateCount || 0);
-  const [iconAnimating, setIconAnimating] = useState(false);
+  const [_iconAnimating, setIconAnimating] = useState(false); // eslint-disable-line no-unused-vars
   // Suggestion modal state
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [suggestionInput, setSuggestionInput] = useState("");
@@ -762,65 +773,90 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
     }));
   };
 
+  // Tag color palette — cycles through a set of brand-friendly pill colors
+  const tagPalette = [
+    'bg-teal-50 text-teal-700 border-teal-200',
+    'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'bg-violet-50 text-violet-700 border-violet-200',
+    'bg-sky-50 text-sky-700 border-sky-200',
+    'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'bg-rose-50 text-rose-700 border-rose-200',
+  ];
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-5 pb-8 sm:pb-10 flex flex-col gap-4 relative">
-      {/* Top right buttons */}
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-        {/* Approaches Button */}
+    <div className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow relative">
+
+      {/* ── Header row: avatar · name · time · bookmark · menu ─── */}
+      <div className="flex items-center gap-3">
+        <UserAvatar
+          userId={post.author._id}
+          avatarUrl={post.author.avatar}
+          size={40}
+          isMentor={post.author.isMentor}
+          isInvestor={post.author.isInvestor}
+        />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm text-gray-900 font-semibold block truncate">
+            {post.author.fullName || post.author.name}
+          </span>
+          <span className="text-xs text-gray-400">{post.time}</span>
+        </div>
+
+        {/* Approach count — small teal badge */}
         <button
-          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-semibold transition px-3 py-1 bg-blue-50 rounded-full shadow-sm border border-blue-100"
           onClick={() => setShowApproachesList(true)}
+          className="flex items-center gap-1 px-2 py-1 bg-teal-50 border border-teal-200 text-teal-600 rounded-lg text-xs font-semibold hover:bg-teal-100 active:scale-95 transition-all shrink-0 touch-manipulation"
+          title="View approaches"
         >
-          Approaches <span className="ml-1">{approachCount}</span>
+          <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+          <span>{approachCount}</span>
         </button>
-        
-        {/* Three dot menu for own posts */}
+
+        {/* Bookmark icon */}
+        <button className="p-1.5 text-gray-300 hover:text-indigo-500 transition-colors focus:outline-none" aria-label="Bookmark">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </button>
+
+        {/* Three-dot menu for own posts */}
         {isOwnPost && (
           <div className="relative" ref={threeDotMenuRef}>
             <button
-              className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
+              className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition focus:outline-none"
               onClick={() => setShowThreeDotMenu(!showThreeDotMenu)}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
               </svg>
             </button>
-            
-            {/* Dropdown menu */}
             {showThreeDotMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-[140px] overflow-hidden">
                 <button
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  onClick={() => {
-                    setShowEditModal(true);
-                    setShowThreeDotMenu(false);
-                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition"
+                  onClick={() => { setShowEditModal(true); setShowThreeDotMenu(false); }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit Idea
                 </button>
                 <button
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                  onClick={() => {
-                    setShowPrivacyModal(true);
-                    setShowThreeDotMenu(false);
-                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition border-t border-gray-100"
+                  onClick={() => { setShowPrivacyModal(true); setShowThreeDotMenu(false); }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                   Privacy
                 </button>
                 <button
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                  onClick={() => {
-                    setShowNDAModal(true);
-                    setShowThreeDotMenu(false);
-                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition border-t border-gray-100"
+                  onClick={() => { setShowNDAModal(true); setShowThreeDotMenu(false); }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   NDA
@@ -830,257 +866,186 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
           </div>
         )}
       </div>
-      {/* Privacy badge - bottom right, responsive */}
-      {(() => {
-        console.log('🔍 BrainstormPost - Post privacy check:', {
-          postId: post._id || post.id,
-          title: post.title,
-          privacy: post.privacy,
-          hasPrivacy: !!post.privacy,
-          isNotPublic: post.privacy !== 'Public',
-          shouldShow: post.privacy && post.privacy !== 'Public'
-        });
-        // Show badge for non-public posts
-        return post.privacy && post.privacy !== 'Public';
-      })() && (
-        <div className="absolute bottom-4 right-4 z-10 sm:bottom-6 sm:right-6">
-          <div className={`px-2 py-1 rounded-full text-xs font-semibold shadow-sm backdrop-blur-sm transition-all duration-200 hover:scale-105 ${
-            post.privacy === 'Private' 
-              ? 'bg-red-100 text-red-700 border border-red-200 hover:bg-red-200' 
-              : 'bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-200'
-          }`}>
-            <span className="hidden sm:inline">
-              {post.privacy === 'Private' ? '🔒 Private' : post.privacy === 'Team' ? '👥 Team' : `🔍 ${post.privacy || 'No Privacy'}`}
-            </span>
-            <span className="sm:hidden">
-              {post.privacy === 'Private' ? '🔒' : post.privacy === 'Team' ? '👥' : '🔍'}
-            </span>
-          </div>
-        </div>
-      )}
-      <div className="flex items-center gap-3 mb-1">
-        <UserAvatar
-          userId={post.author._id}
-          avatarUrl={post.author.avatar}
-          size={32}
-          isMentor={post.author.isMentor}
-          isInvestor={post.author.isInvestor}
-        />
-        <div className="flex flex-col">
-          <span className="text-sm text-black font-medium">{post.author.fullName || post.author.name}</span>
-          <span className="text-xs text-gray-400">{post.time}</span>
-        </div>
-      </div>
-      
-      {/* NDA Protected Content */}
+
+      {/* ── NDA-protected content block ─────────────────────────── */}
       <div className={`relative ${showNDABlur ? 'cursor-pointer' : ''}`} onClick={handleNDAContentClick}>
-        {/* Title & Description */}
         <div className={showNDABlur ? 'filter blur-sm pointer-events-none' : ''}>
-          <h3 className="text-lg font-semibold text-black mb-1 truncate">{post.title}</h3>
-          <p className="text-gray-700 text-sm mb-3 whitespace-pre-line">{post.description}</p>
-          {/* Defensive: Never render image URL as text */}
-          {Array.isArray(post.images) && post.images.length > 0 && post.images[0].url && typeof post.description === 'string' && post.description.includes(post.images[0].url) && (
-            <style>{`.post-image-url-text { display: none !important; }`}</style>
+          {/* Title */}
+          <h3 className="text-lg font-bold text-gray-900 mb-1.5 leading-snug">{post.title}</h3>
+          {/* Description */}
+          <p className="text-gray-500 text-sm mb-4 leading-relaxed line-clamp-2">{post.description}</p>
+
+          {/* Post image */}
+          {Array.isArray(post.images) && post.images.length > 0 && post.images[0].url && (
+            <div className="mb-4 rounded-xl overflow-hidden">
+              <img
+                src={post.images[0].url}
+                alt={post.title}
+                className="w-full object-cover max-h-52"
+              />
+            </div>
+          )}
+
+          {/* Info chips */}
+          {infoFields.some(f => post[f.key]) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-4">
+              {infoFields.map((field) => {
+                const value = post[field.key];
+                if (!value) return null;
+                return (
+                  <div
+                    key={field.key}
+                    className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2 min-w-0"
+                  >
+                    <span className="text-gray-400 text-xs shrink-0">{field.label}:</span>
+                    <span className="text-gray-600 text-xs truncate">{value}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tags — colored uppercase pills */}
+          {post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {post.tags.map((tag, i) => (
+                <span
+                  key={tag}
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${tagPalette[i % tagPalette.length]}`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           )}
         </div>
-        
-        {/* Image section above title/description */}
-        {Array.isArray(post.images) && post.images.length > 0 && post.images[0].url && (
-          <div className={`mb-2 flex justify-center ${showNDABlur ? 'filter blur-sm pointer-events-none' : ''}`}>
-            <img
-              src={post.images[0].url}
-              alt={post.title}
-              className="rounded border border-gray-200 object-cover max-h-48 w-full"
-              style={{ maxWidth: '100%', height: 'auto' }}
-            />
-          </div>
-        )}
-        
-        {/* Info Fields */}
-        <div className={`flex flex-col gap-1 mb-2 ${showNDABlur ? 'filter blur-sm pointer-events-none' : ''}`}>
-          {infoFields.map((field) => {
-            // Show fallback if missing
-            let value = post[field.key];
-            if (typeof value === 'undefined' || value === null || value === '') value = '—';
-            return (
-              <div key={field.key} className="flex items-center text-xs text-gray-500">
-                {field.icon}
-                <span className="mr-1 font-medium">{field.label}:</span>
-                <span className="text-gray-700">{value}</span>
-              </div>
-            );
-          })}
-        </div>
-        
-        {/* Tags */}
-        <div className={`flex flex-wrap gap-2 mb-2 ${showNDABlur ? 'filter blur-sm pointer-events-none' : ''}`}>
-          {post.tags.map((tag) => (
-            <span key={tag} className="border border-gray-300 text-gray-500 text-xs px-2 py-0.5 rounded-full">#{tag}</span>
-          ))}
-        </div>
-        
-        {/* NDA Blur Overlay */}
+
+        {/* NDA blur overlay */}
         {showNDABlur && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 backdrop-blur-sm rounded-lg">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-xl">
+            <div className="text-center px-4">
+              <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Protected Content</h3>
-              <p className="text-sm text-gray-600 mb-4">This idea is protected by an NDA. Click to sign the agreement and view the content.</p>
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">Protected by NDA</h3>
+              <p className="text-xs text-gray-500 mb-3">Sign the agreement to view this idea.</p>
+              <button className="bg-indigo-600 text-white text-xs px-4 py-1.5 rounded-lg font-medium hover:bg-indigo-700 transition">
                 Sign NDA to View
               </button>
             </div>
           </div>
         )}
       </div>
-      {/* Actions */}
-      {!post.hideActions && (
-        <div className="flex gap-6 mt-2">
-          {!isOwnPost && (
-            <button 
-              className="flex items-center gap-1 text-gray-500 hover:text-black text-xs font-medium transition" 
-              onClick={() => {
-                if (isPublicView && onInteraction) {
-                  onInteraction('approach');
-                } else {
-                  setShowApproachModal(true);
-                }
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3.5 5.5V17a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2.5C17.5 13.5 19 11.5 19 9a7 7 0 0 0-7-7z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 21h6" /></svg>
-              Approach
-            </button>
-          )}
-          <button
-            className={`flex items-center gap-1 text-gray-500 hover:text-black text-xs font-medium transition relative ${appreciated ? 'text-red-600 font-semibold' : ''}`}
-            onClick={() => {
-              if (isPublicView && onInteraction) {
-                onInteraction('appreciate');
-              } else {
-                handleAppreciate();
-              }
-            }}
-          >
-            <span className="relative w-4 h-4 flex items-center justify-center">
-              {/* Heart icon (outlined or filled) */}
-              <svg
-                className={`absolute left-0 top-0 w-4 h-4 transition-all duration-300 ${!appreciated ? (iconAnimating ? 'scale-125 opacity-0' : 'scale-100 opacity-100') : 'scale-0 opacity-0'}`}
-                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21C12 21 4 13.5 4 8.5C4 5.5 6.5 3 9.5 3C11.04 3 12.5 3.99 13.07 5.36C13.64 3.99 15.1 3 16.65 3C19.65 3 22.1 5.5 22.1 8.5C22.1 13.5 12 21 12 21Z" />
-              </svg>
-              <svg
-                className={`absolute left-0 top-0 w-4 h-4 transition-all duration-300 ${appreciated ? (iconAnimating ? 'scale-125 opacity-0' : 'scale-100 opacity-100') : 'scale-0 opacity-0'}`}
-                fill={appreciated ? "#ef4444" : "none"} stroke="#ef4444" strokeWidth="2" viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21C12 21 4 13.5 4 8.5C4 5.5 6.5 3 9.5 3C11.04 3 12.5 3.99 13.07 5.36C13.64 3.99 15.1 3 16.65 3C19.65 3 22.1 5.5 22.1 8.5C22.1 13.5 12 21 12 21Z" />
-              </svg>
-            </span>
-            Appreciate <span className="ml-1">{appreciateCount}</span>
-          </button>
-          <button 
-            className="flex items-center gap-1 text-gray-500 hover:text-black text-xs font-medium transition" 
-            onClick={() => {
-              if (isPublicView && onInteraction) {
-                onInteraction('suggest');
-              } else {
-                setShowSuggestModal(true);
-              }
-            }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 12v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 16v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 12v.01" /><path strokeLinecap="round" strokeLinejoin="round" d="M16 12v.01" /></svg>
-            Suggest <span className="ml-1">{suggestionCount}</span>
-          </button>
-          <ShareButton 
-            ideaId={post._id} 
-            ideaTitle={post.title} 
-            onInteraction={isPublicView ? onInteraction : undefined}
-          />
+
+      {/* Privacy badge */}
+      {post.privacy && post.privacy !== 'Public' && (
+        <div className="flex">
+          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border ${
+            post.privacy === 'Private'
+              ? 'bg-red-50 text-red-600 border-red-200'
+              : 'bg-blue-50 text-blue-600 border-blue-200'
+          }`}>
+            {post.privacy === 'Private' ? 'Private' : post.privacy === 'Team' ? 'Team' : post.privacy}
+          </span>
         </div>
       )}
-      {/* Approach Modal (for proposing) */}
+
+      {/* ── Action row ─────────────────────────────────────────── */}
+      {!post.hideActions && (
+        <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+          {/* Like */}
+          <button
+            onClick={() => { isPublicView && onInteraction ? onInteraction('appreciate') : handleAppreciate(); }}
+            className={`flex items-center gap-1.5 text-sm font-medium transition-all active:scale-95 touch-manipulation ${
+              appreciated ? 'text-rose-500' : 'text-gray-400 hover:text-rose-500'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill={appreciated ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21C12 21 4 13.5 4 8.5C4 5.5 6.5 3 9.5 3C11.04 3 12.5 3.99 13.07 5.36C13.64 3.99 15.1 3 16.65 3C19.65 3 22.1 5.5 22.1 8.5C22.1 13.5 12 21 12 21Z" />
+            </svg>
+            {appreciateCount > 0 && <span className="tabular-nums">{appreciateCount.toLocaleString()}</span>}
+          </button>
+
+          {/* Comments / Suggestions */}
+          <button
+            onClick={() => { isPublicView && onInteraction ? onInteraction('suggest') : setShowSuggestModal(true); }}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-indigo-500 transition-all active:scale-95 touch-manipulation"
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            {suggestionCount > 0 && <span className="tabular-nums">{suggestionCount}</span>}
+          </button>
+
+          {/* Share */}
+          <div className="text-gray-400 hover:text-indigo-500 transition">
+            <ShareButton ideaId={post._id} ideaTitle={post.title} onInteraction={isPublicView ? onInteraction : undefined} />
+          </div>
+
+          {/* Right side CTA */}
+          <div className="ml-auto shrink-0">
+            {isOwnPost ? (
+              <button
+                onClick={() => setShowApproachesList(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition"
+              >
+                View Full Blueprint <span aria-hidden="true">→</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => { isPublicView && onInteraction ? onInteraction('approach') : setShowApproachModal(true); }}
+                className="flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 active:scale-95 transition-all touch-manipulation"
+              >
+                Join Core Team
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {/* Approach Modal */}
       {showApproachModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <form onSubmit={handleSendApproach} className="bg-white border border-gray-200 shadow-2xl p-0 w-full max-w-md relative animate-modal-fade-in rounded-none">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white rounded-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <form onSubmit={handleSendApproach} className="bg-zinc-900 border border-zinc-700 w-full max-w-md relative rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-lg font-bold text-blue-600 border-2 border-white shadow overflow-hidden">
-                  {post.author.avatar && post.author.avatar.startsWith('http') ? (
-                    <img
-                      src={post.author.avatar}
-                      alt={post.author.fullName || post.author.name || 'User'}
-                      className="w-full h-full object-cover"
-                      onError={e => { e.target.style.display = 'none'; }}
-                    />
-                  ) : (
-                    (post.author.fullName?.[0] || post.author.name?.[0] || 'U')
-                  )}
+                <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold text-emerald-400 overflow-hidden">
+                  {post.author.avatar?.startsWith('http') ? (
+                    <img src={post.author.avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (post.author.fullName?.[0] || 'U')}
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Approach: {post.title}</span>
-                  <span className="text-xs text-gray-500">by {post.author.fullName || post.author.name}</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">{post.title}</p>
+                  <p className="text-xs text-zinc-500">by {post.author.fullName || post.author.name}</p>
                 </div>
               </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowApproachModal(false)} aria-label="Close">&times;</button>
+              <button type="button" onClick={() => setShowApproachModal(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            {/* Idea Details Section */}
-            <div className="px-6 pt-4 pb-2">
-              <div className="bg-white border border-gray-100 p-4 flex flex-col gap-2">
-                <div className="text-base font-bold text-gray-900 mb-1">{post.title}</div>
-                <div className="text-sm text-gray-700 mb-2">{post.description}</div>
-                {post.infoFields && (
-                  <div className="flex flex-col gap-1 text-xs text-gray-500 mb-2">
-                    {post.infoFields.map((field, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        {field.icon}
-                        <span>{field.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {post.tags && post.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {post.tags.map((tag, idx) => (
-                      <span key={idx} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">{tag}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Body */}
-            <div className="px-6 py-6">
-              <div className="mb-4">
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Select Role</label>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1.5 font-semibold">Select Role</label>
                 <select
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  value={approachRole}
-                  onChange={e => setApproachRole(e.target.value)}
-                  required
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  value={approachRole} onChange={e => setApproachRole(e.target.value)} required
                 >
-                  {rolesArray.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
+                  {rolesArray.map(role => <option key={role} value={role}>{role}</option>)}
                 </select>
               </div>
-              <div className="mb-6">
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">How can you help?</label>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1.5 font-semibold">How can you help?</label>
                 <textarea
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
-                  placeholder="Explain your interest and how you can help in this role..."
-                  value={approachMsg}
-                  onChange={e => setApproachMsg(e.target.value)}
-                  rows={3}
-                  required
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none resize-none"
+                  placeholder="Explain your interest and how you can help..."
+                  value={approachMsg} onChange={e => setApproachMsg(e.target.value)} rows={3} required
                 />
               </div>
-              <div className="flex gap-2 justify-end border-t border-gray-100 pt-4">
-                <button type="button" className="bg-gray-100 text-gray-700 px-5 py-2 rounded font-semibold hover:bg-gray-200 transition" onClick={() => setShowApproachModal(false)}>Cancel</button>
-                <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded font-semibold hover:bg-blue-700 transition">Send</button>
+              <div className="flex gap-2 justify-end pt-2 border-t border-zinc-800">
+                <button type="button" className="bg-zinc-800 text-zinc-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-zinc-700 transition" onClick={() => setShowApproachModal(false)}>Cancel</button>
+                <button type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-500 transition">Send</button>
               </div>
             </div>
           </form>
@@ -1088,86 +1053,47 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       )}
       {/* Approaches List Modal */}
       {showApproachesList && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-md animate-modal-fade-in relative rounded-none">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white rounded-none">
-              <div className="text-lg font-bold text-gray-900">Approaches <span className='font-normal text-gray-400'>({approachCount})</span></div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowApproachesList(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-md relative rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <p className="text-base font-bold text-white">Approaches <span className="font-normal text-zinc-500">({approachCount})</span></p>
+              <button type="button" onClick={() => setShowApproachesList(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            <div className="px-6 py-6">
+            <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
               {validApproaches.length === 0 ? (
-                <div className="text-gray-400 text-center">No approaches yet.</div>
+                <p className="text-zinc-500 text-sm text-center py-4">No approaches yet.</p>
               ) : (
-                <ul className="space-y-0 divide-y divide-gray-100">
+                <ul className="divide-y divide-zinc-800">
                   {validApproaches.map((approach, idx) => (
-                    <li key={approach._id || idx} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0 group">
-                      <UserAvatar
-                        userId={approach.user?._id}
-                        avatarUrl={approach.user?.avatar}
-                        size={44}
-                        isMentor={approach.user?.isMentor}
-                        isInvestor={approach.user?.isInvestor}
-                      />
+                    <li key={approach._id || idx} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0 group">
+                      <UserAvatar userId={approach.user?._id} avatarUrl={approach.user?.avatar} size={38} isMentor={approach.user?.isMentor} isInvestor={approach.user?.isInvestor} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-semibold text-gray-900">
-                            {(() => {
-                              if (!approach.user || typeof approach.user !== 'object') return 'Unknown';
-                              return approach.user.fullName || approach.user.firstName || approach.user.name || 'Unknown';
-                            })()}
+                        <div className="flex items-center flex-wrap gap-2 mb-0.5">
+                          <span className="text-sm font-semibold text-white">
+                            {(!approach.user || typeof approach.user !== 'object') ? 'Unknown' : (approach.user.fullName || approach.user.firstName || approach.user.name || 'Unknown')}
                           </span>
-                          <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded px-2 py-0.5">
-                            {typeof approach.role === 'string' ? approach.role : ''}
-                          </span>
+                          {approach.role && <span className="text-xs text-zinc-400 bg-zinc-800 rounded px-2 py-0.5">{approach.role}</span>}
                           {approach.status && (
                             <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                              approach.status === 'selected' ? 'bg-green-100 text-green-700' :
-                              approach.status === 'queued' ? 'bg-yellow-100 text-yellow-700' :
-                              approach.status === 'declined' ? 'bg-red-100 text-red-700' :
-                              'bg-gray-100 text-gray-500'
-                            }`}>
-                              {approach.status === 'selected' ? 'Selected' :
-                               approach.status === 'queued' ? 'Queued' :
-                               approach.status === 'declined' ? 'Declined' : 'Pending'}
-                            </span>
+                              approach.status === 'selected' ? 'bg-emerald-900/50 text-emerald-400' :
+                              approach.status === 'queued' ? 'bg-yellow-900/50 text-yellow-400' :
+                              approach.status === 'declined' ? 'bg-red-900/50 text-red-400' :
+                              'bg-zinc-800 text-zinc-400'
+                            }`}>{approach.status === 'selected' ? 'Selected' : approach.status === 'queued' ? 'Queued' : approach.status === 'declined' ? 'Declined' : 'Pending'}</span>
                           )}
                         </div>
-                        {approach.description && typeof approach.description === 'string' && (
-                          <div className="text-sm text-gray-600 mt-1 whitespace-pre-line">{approach.description}</div>
-                        )}
+                        {approach.description && <p className="text-sm text-zinc-400 mt-1">{approach.description}</p>}
                       </div>
-                      {/* Action buttons - only show if user is the author and approach is pending */}
                       {isOwnPost && (!approach.status || approach.status === 'pending') && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          {/* Accept */}
-                          <button
-                            onClick={() => handleApproachAction(approach._id, 'selected')}
-                            className="p-2 rounded-full hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors duration-200"
-                            title="Accept this approach"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleApproachAction(approach._id, 'selected')} className="p-1.5 rounded-lg hover:bg-emerald-900/40 text-emerald-500 transition" title="Accept">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                           </button>
-                          {/* Queue */}
-                          <button
-                            onClick={() => handleApproachAction(approach._id, 'queued')}
-                            className="p-2 rounded-full hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 transition-colors duration-200"
-                            title="Queue this approach"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                          <button onClick={() => handleApproachAction(approach._id, 'queued')} className="p-1.5 rounded-lg hover:bg-yellow-900/40 text-yellow-500 transition" title="Queue">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           </button>
-                          {/* Decline */}
-                          <button
-                            onClick={() => handleApproachAction(approach._id, 'declined')}
-                            className="p-2 rounded-full hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors duration-200"
-                            title="Decline this approach"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                          <button onClick={() => handleApproachAction(approach._id, 'declined')} className="p-1.5 rounded-lg hover:bg-red-900/40 text-red-500 transition" title="Decline">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
                         </div>
                       )}
@@ -1179,104 +1105,62 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
           </div>
         </div>
       )}
-      {/* Suggest Modal Popup */}
+      {/* Suggest Modal */}
       {showSuggestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-xl animate-modal-fade-in relative rounded-none">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white rounded-none">
-              <div className="text-lg font-bold text-gray-900">Suggestions</div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowSuggestModal(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-lg relative rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <p className="text-base font-bold text-white">Suggestions</p>
+              <button type="button" onClick={() => setShowSuggestModal(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            {/* Suggestion Input */}
-            <div className="px-6 pb-4 pt-6">
+            <div className="px-6 pt-5 pb-4">
               <textarea
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none mb-2"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none resize-none mb-2"
                 placeholder="Add your suggestion..."
-                value={suggestionInput}
-                onChange={e => setSuggestionInput(e.target.value)}
-                rows={2}
+                value={suggestionInput} onChange={e => setSuggestionInput(e.target.value)} rows={2}
               />
               <div className="flex justify-end">
-                <button
-                  className="bg-blue-600 text-white px-5 py-2 rounded font-semibold hover:bg-blue-700 transition"
-                  onClick={handleSuggest}
-                  disabled={!suggestionInput.trim()}
-                >
-                  Submit
-                </button>
+                <button className="bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-sm font-semibold hover:bg-emerald-500 transition disabled:opacity-40" onClick={handleSuggest} disabled={!suggestionInput.trim()}>Submit</button>
               </div>
             </div>
-            {/* Suggestions List */}
-            <div className="px-6 pb-6">
-              <div className="text-xs text-gray-500 mb-2">
-                Previous Suggestions ({suggestionCount})
-              </div>
+            <div className="px-6 pb-5">
+              <p className="text-xs text-zinc-500 mb-2">Previous Suggestions ({suggestionCount})</p>
               {loadingSuggestions ? (
                 <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-sm text-gray-500">Loading suggestions...</span>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500" />
+                  <span className="ml-2 text-sm text-zinc-500">Loading...</span>
                 </div>
               ) : suggestions.length > 0 ? (
-                <ul className="space-y-3 max-h-40 overflow-y-auto">
+                <ul className="space-y-2 max-h-44 overflow-y-auto">
                   {suggestions.map((s, idx) => (
-                    <li key={s._id || idx} className="bg-gray-50 border border-gray-100 rounded px-3 py-2 text-sm flex items-start gap-3">
-                      <UserAvatar
-                        userId={s.user?._id}
-                        avatarUrl={s.user?.avatar}
-                        size={32}
-                        isMentor={s.user?.isMentor}
-                        isInvestor={s.user?.isInvestor}
-                      />
-                      {/* Name and content */}
+                    <li key={s._id || idx} className="bg-zinc-800 rounded-xl px-3 py-2 text-sm flex items-start gap-2">
+                      <UserAvatar userId={s.user?._id} avatarUrl={s.user?.avatar} size={28} isMentor={s.user?.isMentor} isInvestor={s.user?.isInvestor} />
                       <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-gray-700">
-                          {s.user && (s.user.fullName || s.user.name) ? (s.user.fullName || s.user.name) : 'Unknown'}
-                        </span>
-                        <span className="ml-2 text-gray-600">{s.content || s.description || s.text}</span>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {new Date(s.createdAt).toLocaleDateString()}
-                        </div>
+                        <span className="font-semibold text-zinc-300 text-xs">{s.user?.fullName || s.user?.name || 'Unknown'}</span>
+                        <span className="ml-1.5 text-zinc-400 text-xs">{s.content || s.description || s.text}</span>
+                        <p className="text-xs text-zinc-600 mt-0.5">{new Date(s.createdAt).toLocaleDateString()}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                  No suggestions yet. Be the first to suggest!
-                </div>
+                <p className="text-center py-3 text-zinc-600 text-sm">No suggestions yet. Be the first!</p>
               )}
             </div>
           </div>
         </div>
       )}
-      {/* Error Popup */}
+      {/* Error / Info Popup */}
       {showErrorPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-sm animate-modal-fade-in relative rounded-none">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-white rounded-none">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                </div>
-                <div className="text-lg font-bold text-gray-900">Cannot Approach</div>
-              </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowErrorPopup(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-sm relative rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <p className="text-base font-bold text-white">Notice</p>
+              <button type="button" onClick={() => setShowErrorPopup(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            <div className="px-6 py-6 text-center">
-              <div className="mb-4">
-                <p className="text-sm text-gray-700 leading-relaxed">{errorMessage}</p>
-              </div>
-              <div className="flex justify-center">
-                <button
-                  className="bg-orange-600 text-white px-6 py-2 rounded font-semibold hover:bg-orange-700 transition text-sm"
-                  onClick={() => setShowErrorPopup(false)}
-                >
-                  Got it
-                </button>
-              </div>
+            <div className="px-6 py-5 text-center">
+              <p className="text-sm text-zinc-300 leading-relaxed mb-4">{errorMessage}</p>
+              <button className="bg-zinc-700 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-zinc-600 transition" onClick={() => setShowErrorPopup(false)}>Got it</button>
             </div>
           </div>
         </div>
@@ -1284,141 +1168,45 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       
       {/* Edit Idea Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <form onSubmit={handleEditIdea} className="bg-white border border-gray-200 shadow-2xl w-full max-w-2xl animate-modal-fade-in relative rounded-none max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white rounded-none sticky top-0 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </div>
-                <div className="text-lg font-bold text-gray-900">Edit Idea</div>
-              </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowEditModal(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <form onSubmit={handleEditIdea} className="bg-zinc-900 border border-zinc-700 w-full max-w-2xl relative rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+              <p className="text-base font-bold text-white">Edit Idea</p>
+              <button type="button" onClick={() => setShowEditModal(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            
-            {/* Form Content */}
-            <div className="px-6 py-6 space-y-4">
-              {/* Title */}
+            <div className="px-6 py-5 space-y-4">
+              {[
+                { label: 'Idea Title', field: 'title', type: 'input', placeholder: 'Enter your idea title', required: true },
+                { label: 'Description', field: 'description', type: 'textarea', placeholder: 'Describe your idea', rows: 4, required: true },
+                { label: 'Target Audience', field: 'targetAudience', type: 'input', placeholder: 'Who is your target audience?' },
+                { label: 'Market Alternatives', field: 'marketAlternatives', type: 'input', placeholder: 'Existing alternatives?' },
+                { label: 'Problem Statement', field: 'problemStatement', type: 'textarea', placeholder: 'What problem does it solve?', rows: 3 },
+                { label: 'Unique Value Proposition', field: 'uniqueValue', type: 'textarea', placeholder: 'What makes it unique?', rows: 3 },
+              ].map(({ label, field, type, placeholder, rows, required }) => (
+                <div key={field}>
+                  <label className="block text-xs text-zinc-400 mb-1.5 font-semibold">{label}</label>
+                  {type === 'input' ? (
+                    <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none" value={editForm[field]} onChange={e => handleEditFormChange(field, e.target.value)} placeholder={placeholder} required={required} />
+                  ) : (
+                    <textarea className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none resize-none" value={editForm[field]} onChange={e => handleEditFormChange(field, e.target.value)} placeholder={placeholder} rows={rows} required={required} />
+                  )}
+                </div>
+              ))}
               <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Idea Title</label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  value={editForm.title}
-                  onChange={(e) => handleEditFormChange('title', e.target.value)}
-                  placeholder="Enter your idea title"
-                  required
-                />
-              </div>
-              
-              {/* Description */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Description</label>
-                <textarea
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
-                  value={editForm.description}
-                  onChange={(e) => handleEditFormChange('description', e.target.value)}
-                  placeholder="Describe your idea in detail"
-                  rows={4}
-                  required
-                />
-              </div>
-              
-              {/* Target Audience */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Target Audience</label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  value={editForm.targetAudience}
-                  onChange={(e) => handleEditFormChange('targetAudience', e.target.value)}
-                  placeholder="Who is your target audience?"
-                />
-              </div>
-              
-              {/* Market Alternatives */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Market Alternatives</label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  value={editForm.marketAlternatives}
-                  onChange={(e) => handleEditFormChange('marketAlternatives', e.target.value)}
-                  placeholder="What alternatives exist in the market?"
-                />
-              </div>
-              
-              {/* Problem Statement */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Problem Statement</label>
-                <textarea
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
-                  value={editForm.problemStatement}
-                  onChange={(e) => handleEditFormChange('problemStatement', e.target.value)}
-                  placeholder="What problem does your idea solve?"
-                  rows={3}
-                />
-              </div>
-              
-              {/* Unique Value */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Unique Value Proposition</label>
-                <textarea
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
-                  value={editForm.uniqueValue}
-                  onChange={(e) => handleEditFormChange('uniqueValue', e.target.value)}
-                  placeholder="What makes your idea unique?"
-                  rows={3}
-                />
-              </div>
-              
-              {/* Needed Roles */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-semibold">Needed Roles</label>
+                <label className="block text-xs text-zinc-400 mb-1.5 font-semibold">Needed Roles</label>
                 <div className="flex flex-wrap gap-2">
-                  {approachRoles.map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                        editForm.neededRoles.includes(role)
-                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                          : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-                      }`}
-                      onClick={() => {
-                        const updatedRoles = editForm.neededRoles.includes(role)
-                          ? editForm.neededRoles.filter(r => r !== role)
-                          : [...editForm.neededRoles, role];
-                        handleEditFormChange('neededRoles', updatedRoles);
-                      }}
-                    >
-                      {role}
-                    </button>
+                  {approachRoles.map(role => (
+                    <button key={role} type="button"
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition border ${editForm.neededRoles.includes(role) ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-500'}`}
+                      onClick={() => { const upd = editForm.neededRoles.includes(role) ? editForm.neededRoles.filter(r => r !== role) : [...editForm.neededRoles, role]; handleEditFormChange('neededRoles', upd); }}
+                    >{role}</button>
                   ))}
                 </div>
               </div>
             </div>
-            
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-              <button
-                type="button"
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded font-semibold hover:bg-gray-50 transition text-sm"
-                onClick={() => setShowEditModal(false)}
-                disabled={editLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition text-sm disabled:opacity-50"
-                disabled={editLoading || !editForm.title.trim() || !editForm.description.trim()}
-              >
-                {editLoading ? 'Updating...' : 'Update Idea'}
-              </button>
+            <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3">
+              <button type="button" className="px-4 py-2 text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-700 transition" onClick={() => setShowEditModal(false)} disabled={editLoading}>Cancel</button>
+              <button type="submit" className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-500 transition disabled:opacity-40" disabled={editLoading || !editForm.title.trim() || !editForm.description.trim()}>{editLoading ? 'Updating...' : 'Update Idea'}</button>
             </div>
           </form>
         </div>
@@ -1426,125 +1214,33 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       
       {/* Privacy Settings Modal */}
       {showPrivacyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-md animate-modal-fade-in relative rounded-none">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-white rounded-none">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <div className="text-lg font-bold text-gray-900">Privacy Settings</div>
-              </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowPrivacyModal(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-md relative rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <p className="text-base font-bold text-white">Privacy Settings</p>
+              <button type="button" onClick={() => setShowPrivacyModal(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            
-            {/* Form Content */}
-            <form onSubmit={handlePrivacyUpdate} className="px-6 py-6 space-y-4">
-              {/* Current Privacy Status */}
-              <div className="p-4 bg-purple-50 border border-purple-200 rounded">
-                <div className="text-sm font-semibold text-purple-800 mb-1">Current Privacy</div>
-                <div className="text-sm text-purple-700">
-                  {privacyForm.privacy === 'Public' && '🌍 Public - Visible to everyone'}
-                  {privacyForm.privacy === 'Private' && '🔒 Private - Only visible to you'}
-                  {privacyForm.privacy === 'Team' && '👥 Team - Visible to team members'}
-                </div>
-              </div>
-              
-              {/* Idea Privacy Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-3">Change Idea Privacy</label>
-                <div className="space-y-3">
-                  {/* Public Option */}
-                  <div className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                    privacyForm.privacy === 'Public' 
-                      ? 'border-purple-300 bg-purple-50' 
-                      : 'border-gray-200 hover:border-purple-200'
-                  }`} onClick={() => handlePrivacyChange('privacy', 'Public')}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        privacyForm.privacy === 'Public' 
-                          ? 'border-purple-600 bg-purple-600' 
-                          : 'border-gray-300'
-                      }`}>
-                        {privacyForm.privacy === 'Public' && (
-                          <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">🌍 Public</div>
-                        <div className="text-xs text-gray-500">Visible to everyone on the platform</div>
-                      </div>
-                    </div>
+            <form onSubmit={handlePrivacyUpdate} className="px-6 py-5 space-y-3">
+              {[
+                { value: 'Public', label: 'Public', desc: 'Visible to everyone on the platform' },
+                { value: 'Team', label: 'Team', desc: 'Visible to team members only' },
+                { value: 'Private', label: 'Private', desc: 'Only visible to you' },
+              ].map(opt => (
+                <div key={opt.value} onClick={() => handlePrivacyChange('privacy', opt.value)}
+                  className={`border rounded-xl p-3 cursor-pointer transition-all flex items-center gap-3 ${privacyForm.privacy === opt.value ? 'border-emerald-600/50 bg-emerald-900/20' : 'border-zinc-700 hover:border-zinc-600'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${privacyForm.privacy === opt.value ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-600'}`}>
+                    {privacyForm.privacy === opt.value && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                   </div>
-                  
-                  {/* Team Option */}
-                  <div className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                    privacyForm.privacy === 'Team' 
-                      ? 'border-purple-300 bg-purple-50' 
-                      : 'border-gray-200 hover:border-purple-200'
-                  }`} onClick={() => handlePrivacyChange('privacy', 'Team')}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        privacyForm.privacy === 'Team' 
-                          ? 'border-purple-600 bg-purple-600' 
-                          : 'border-gray-300'
-                      }`}>
-                        {privacyForm.privacy === 'Team' && (
-                          <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">👥 Team</div>
-                        <div className="text-xs text-gray-500">Visible to team members and collaborators</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Private Option */}
-                  <div className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                    privacyForm.privacy === 'Private' 
-                      ? 'border-purple-300 bg-purple-50' 
-                      : 'border-gray-200 hover:border-purple-200'
-                  }`} onClick={() => handlePrivacyChange('privacy', 'Private')}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        privacyForm.privacy === 'Private' 
-                          ? 'border-purple-600 bg-purple-600' 
-                          : 'border-gray-300'
-                      }`}>
-                        {privacyForm.privacy === 'Private' && (
-                          <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">🔒 Private</div>
-                        <div className="text-xs text-gray-500">Only visible to you</div>
-                      </div>
-                    </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{opt.label}</p>
+                    <p className="text-xs text-zinc-500">{opt.desc}</p>
                   </div>
                 </div>
-              </div>
-              
-              {/* Footer */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded font-semibold hover:bg-gray-50 transition text-sm"
-                  onClick={() => setShowPrivacyModal(false)}
-                  disabled={privacyLoading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700 transition text-sm disabled:opacity-50"
-                  disabled={privacyLoading}
-                >
-                  {privacyLoading ? 'Updating...' : 'Update Idea Privacy'}
-                </button>
+              ))}
+              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+                <button type="button" className="px-4 py-2 text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-700 transition" onClick={() => setShowPrivacyModal(false)} disabled={privacyLoading}>Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-500 transition disabled:opacity-40" disabled={privacyLoading}>{privacyLoading ? 'Updating...' : 'Update Privacy'}</button>
               </div>
             </form>
           </div>
@@ -1553,93 +1249,29 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       
       {/* NDA Management Modal */}
       {showNDAModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-lg animate-modal-fade-in relative rounded-none max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-white rounded-none sticky top-0 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div className="text-lg font-bold text-gray-900">NDA Management</div>
-              </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowNDAModal(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-lg relative rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+              <p className="text-base font-bold text-white">NDA Management</p>
+              <button type="button" onClick={() => setShowNDAModal(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            
-            {/* Content */}
-            <div className="px-6 py-6">
-              {/* Current NDA Protection Status */}
-              <div className={`p-4 border rounded mb-4 ${
-                ndaProtection 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-gray-50 border-gray-200'
-              }`}>
-                <div className={`text-sm font-semibold mb-2 ${
-                  ndaProtection ? 'text-green-800' : 'text-gray-800'
-                }`}>
-                  {ndaProtection ? '🔒 NDA Protection Active' : '🔓 No NDA Protection'}
-                </div>
-                <div className={`text-sm ${
-                  ndaProtection ? 'text-green-700' : 'text-gray-700'
-                }`}>
-                  {ndaProtection 
-                    ? 'This idea is protected by NDA. Other users will see blurred content and must sign the agreement to view details.'
-                    : 'Enable NDA protection to require users to sign an agreement before viewing this idea.'
-                  }
-                </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className={`p-4 border rounded-xl text-sm ${ndaProtection ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-300' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>
+                {ndaProtection ? 'NDA Protection Active — other users see blurred content.' : 'No NDA protection. Content is visible to everyone.'}
               </div>
-              
-              {/* NDA Protection Toggle */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">NDA Protection</div>
-                    <div className="text-xs text-gray-500">
-                      {ndaProtection 
-                        ? 'Content is blurred for other users' 
-                        : 'Content is visible to everyone'
-                      }
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleNDAProtectionToggle}
-                    disabled={ndaLoading}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      ndaProtection ? 'bg-green-600' : 'bg-gray-300'
-                    } ${ndaLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      ndaProtection ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
+              <div className="flex items-center justify-between p-4 border border-zinc-700 rounded-xl">
+                <div>
+                  <p className="text-sm font-semibold text-white">NDA Protection</p>
+                  <p className="text-xs text-zinc-500">{ndaProtection ? 'Content is blurred for others' : 'Content visible to everyone'}</p>
                 </div>
-                
-                {ndaProtection && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-sm font-semibold text-blue-800 mb-2">How it works:</div>
-                    <ul className="text-xs text-blue-700 space-y-1">
-                      <li>• Other users will see blurred content</li>
-                      <li>• They must click to sign the NDA agreement</li>
-                      <li>• After signing, they can view the full content</li>
-                      <li>• You'll receive email notifications of NDA signings</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-              
-              {/* Footer */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded font-semibold hover:bg-gray-50 transition text-sm"
-                  onClick={() => setShowNDAModal(false)}
-                  disabled={ndaLoading}
+                <button type="button" onClick={handleNDAProtectionToggle} disabled={ndaLoading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${ndaProtection ? 'bg-emerald-600' : 'bg-zinc-700'} ${ndaLoading ? 'opacity-50' : 'cursor-pointer'}`}
                 >
-                  Close
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${ndaProtection ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
+              </div>
+              <div className="flex justify-end pt-2 border-t border-zinc-800">
+                <button type="button" className="px-4 py-2 text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-700 transition" onClick={() => setShowNDAModal(false)}>Close</button>
               </div>
             </div>
           </div>
@@ -1648,128 +1280,46 @@ function BrainstormPost({ post, onApproach, setSelectedUserId, onInteraction, is
       
       {/* NDA Agreement Form Modal */}
       {showNDAAgreementForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-lg animate-modal-fade-in relative rounded-none max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white rounded-none sticky top-0 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div className="text-lg font-bold text-gray-900">Sign NDA Agreement</div>
-              </div>
-              <button type="button" className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none" onClick={() => setShowNDAAgreementForm(false)} aria-label="Close">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-lg relative rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+              <p className="text-base font-bold text-white">Sign NDA Agreement</p>
+              <button type="button" onClick={() => setShowNDAAgreementForm(false)} className="text-zinc-500 hover:text-white text-xl font-bold">&times;</button>
             </div>
-            
-            {/* Content */}
-            <div className="px-6 py-6">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">NDA Agreement for: {post.title}</h3>
-                <p className="text-sm text-gray-600">By signing this agreement, you agree to maintain confidentiality of the information shared.</p>
-              </div>
-              
+            <div className="px-6 py-5">
+              <p className="text-sm text-zinc-400 mb-4">By signing, you agree to maintain confidentiality of the information shared in <strong className="text-white">{post.title}</strong>.</p>
               <form onSubmit={handleNDAAgreementSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                      value={ndaAgreementForm.signerName}
-                      onChange={(e) => handleNDAAgreementChange('signerName', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                    <input
-                      type="email"
-                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                      value={ndaAgreementForm.signerEmail}
-                      onChange={(e) => handleNDAAgreementChange('signerEmail', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                      value={ndaAgreementForm.companyName}
-                      onChange={(e) => handleNDAAgreementChange('companyName', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                      value={ndaAgreementForm.position}
-                      onChange={(e) => handleNDAAgreementChange('position', e.target.value)}
-                    />
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { label: 'Full Name *', field: 'signerName', type: 'text', required: true },
+                    { label: 'Email *', field: 'signerEmail', type: 'email', required: true },
+                    { label: 'Company', field: 'companyName', type: 'text' },
+                    { label: 'Position', field: 'position', type: 'text' },
+                  ].map(({ label, field, type, required }) => (
+                    <div key={field}>
+                      <label className="block text-xs text-zinc-400 mb-1 font-semibold">{label}</label>
+                      <input type={type} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none" value={ndaAgreementForm[field]} onChange={e => handleNDAAgreementChange(field, e.target.value)} required={required} />
+                    </div>
+                  ))}
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Digital Signature *</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    placeholder="Type your full name as signature"
-                    value={ndaAgreementForm.signature}
-                    onChange={(e) => handleNDAAgreementChange('signature', e.target.value)}
-                    required
-                  />
+                  <label className="block text-xs text-zinc-400 mb-1 font-semibold">Digital Signature *</label>
+                  <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-emerald-500 focus:outline-none" placeholder="Type your full name" value={ndaAgreementForm.signature} onChange={e => handleNDAAgreementChange('signature', e.target.value)} required />
                 </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      id="agreeToTerms"
-                      checked={ndaAgreementForm.agreeToTerms}
-                      onChange={(e) => handleNDAAgreementChange('agreeToTerms', e.target.checked)}
-                      className="mt-1"
-                      required
-                    />
-                    <label htmlFor="agreeToTerms" className="text-sm text-gray-700">
-                      I agree to the terms and conditions of this NDA agreement *
-                    </label>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      id="agreeToConfidentiality"
-                      checked={ndaAgreementForm.agreeToConfidentiality}
-                      onChange={(e) => handleNDAAgreementChange('agreeToConfidentiality', e.target.checked)}
-                      className="mt-1"
-                      required
-                    />
-                    <label htmlFor="agreeToConfidentiality" className="text-sm text-gray-700">
-                      I agree to maintain confidentiality of all information shared *
-                    </label>
-                  </div>
+                <div className="space-y-2">
+                  {[
+                    { id: 'agreeToTerms', field: 'agreeToTerms', label: 'I agree to the terms and conditions of this NDA *' },
+                    { id: 'agreeToConfidentiality', field: 'agreeToConfidentiality', label: 'I agree to maintain confidentiality of all information shared *' },
+                  ].map(({ id, field, label }) => (
+                    <div key={id} className="flex items-start gap-3">
+                      <input type="checkbox" id={id} checked={ndaAgreementForm[field]} onChange={e => handleNDAAgreementChange(field, e.target.checked)} className="mt-0.5 accent-emerald-500" required />
+                      <label htmlFor={id} className="text-sm text-zinc-400">{label}</label>
+                    </div>
+                  ))}
                 </div>
-                
-                {/* Footer */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded font-semibold hover:bg-gray-50 transition text-sm"
-                    onClick={() => setShowNDAAgreementForm(false)}
-                    disabled={ndaAgreementLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition text-sm disabled:opacity-50"
-                    disabled={ndaAgreementLoading || !ndaAgreementForm.agreeToTerms || !ndaAgreementForm.agreeToConfidentiality || !ndaAgreementForm.signature}
-                  >
-                    {ndaAgreementLoading ? 'Signing...' : 'Sign NDA'}
-                  </button>
+                <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+                  <button type="button" className="px-4 py-2 text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-700 transition" onClick={() => setShowNDAAgreementForm(false)} disabled={ndaAgreementLoading}>Cancel</button>
+                  <button type="submit" className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-500 transition disabled:opacity-40" disabled={ndaAgreementLoading || !ndaAgreementForm.agreeToTerms || !ndaAgreementForm.agreeToConfidentiality || !ndaAgreementForm.signature}>{ndaAgreementLoading ? 'Signing...' : 'Sign NDA'}</button>
                 </div>
               </form>
             </div>

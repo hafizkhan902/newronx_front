@@ -33,13 +33,13 @@
       "react-app/jest"
     ]
   },
+  "proxy": "http://localhost:2000",
   "browserslist": {
     "production": [
       ">0.2%",
       "not dead",
       "not op_mini all"
     ],
-    "proxy":"http://localhost:3000",
     "development": [
       "last 1 chrome version",
       "last 1 firefox version",

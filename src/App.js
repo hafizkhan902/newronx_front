@@ -9,74 +9,9 @@ import { ThemeProvider } from './ThemeContext';
 import { HeaderAd, FooterAd, InContentAd } from './components/AdWrapper';
 import PublicIdeaView from './components/PublicIdeaView';
 
-const tools = [
-  {
-    name: 'Code Evaluator',
-    description: 'Submit code and get AI-powered feedback to improve your skills.',
-    path: '/code-evaluator',
-  },
-  {
-    name: 'Design Critique',
-    description: 'Upload UI/UX designs for instant, actionable AI review.',
-    path: '/design-critique',
-  },
-  {
-    name: 'Startup Validator',
-    description: 'Validate your app ideas, share with the community, and form a team.',
-    path: '/startup-validator',
-  },
-  {
-    name: 'Learning Assistant',
-    description: 'Ask questions and get code, diagrams, and explanations.',
-    path: '/learning-assistant',
-  },
-  {
-    name: 'Career Path Builder',
-    description: 'Let AI build a custom roadmap for your software journey.',
-    path: '/career-path-builder',
-  },
-  {
-    name: 'Voice-to-Project',
-    description: 'Convert voice notes into structured project summaries.',
-    path: '/voice-to-project',
-  },
-  {
-    name: 'Portfolio Builder',
-    description: 'Collect and export your best work into a stunning portfolio.',
-    path: '/portfolio-builder',
-  },
-  {
-    name: 'AI Chat Mentor',
-    description: 'Chat with an AI tutor and coach for guidance and support.',
-    path: '/ai-chat-mentor',
-  },
-];
 
-const routineCard = (
-  <div className="max-w-3xl mx-auto mb-12 mt-16">
-    <Link to="/routine-management" className="block bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 rounded-3xl shadow-xl border-2 border-blue-600 hover:scale-105 transition-transform p-8 text-center relative overflow-hidden">
-      <div className="flex flex-col items-center justify-center">
-        <div className="mb-4">
-          <svg className="w-16 h-16 text-blue-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 48 48">
-            <rect x="8" y="12" width="32" height="28" rx="6" className="stroke-blue-400" strokeWidth="2.5" fill="#1e293b"/>
-            <rect x="14" y="18" width="20" height="8" rx="2" className="stroke-blue-300" strokeWidth="2" fill="#334155"/>
-            <rect x="14" y="30" width="12" height="4" rx="2" className="stroke-blue-300" strokeWidth="2" fill="#334155"/>
-          </svg>
-        </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 drop-shadow">Routine Management</h2>
-        <p className="text-blue-100 text-base md:text-lg mb-4 max-w-xl mx-auto">
-          Stay on top of your studies, projects, and self-care. Our Routine Management tool helps you plan, track, and optimize your daily habits—so you can focus on what matters most.
-        </p>
-        <span className="inline-block bg-blue-600 text-white font-semibold px-6 py-2 rounded-full shadow hover:bg-blue-700 transition">Start Managing Your Routine</span>
-      </div>
-      <div className="absolute -top-8 -right-8 opacity-20 pointer-events-none select-none">
-        <svg width="120" height="120" fill="none" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="50" stroke="#3b82f6" strokeWidth="10" fill="none" />
-        </svg>
-      </div>
-    </Link>
-  </div>
-);
+
+
 
 function UseCaseSection() {
   return (
@@ -233,20 +168,9 @@ function Home() {
       {/* Tool Cards Grid */}
       <main className="flex-1 px-4 pb-16">
         <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {tools.map((tool) => (
-            <Link
-              key={tool.name}
-              to={tool.path}
-              className="bg-gray-900 border border-gray-800 rounded-xl shadow hover:shadow-lg hover:border-blue-500 transition p-6 flex flex-col cursor-pointer group"
-            >
-              <h2 className="text-xl font-semibold mb-2 text-white group-hover:text-blue-400 transition">{tool.name}</h2>
-              <p className="text-gray-400 text-sm flex-1">{tool.description}</p>
-              <span className="mt-4 text-blue-500 text-xs font-medium group-hover:underline">Open Tool →</span>
-            </Link>
-          ))}
+          
         </div>
         {/* Routine Management Card (moved below the grid) */}
-        {routineCard}
         
         {/* In-Content Ad */}
         <InContentAd />
@@ -444,13 +368,6 @@ function App() {
               } 
             />
             <Route path="/home" element={<Home />} />
-            {tools.map((tool) => (
-              <Route
-                key={tool.path}
-                path={tool.path}
-                element={<Placeholder name={tool.name} />}
-              />
-            ))}
             <Route path="/routine-management" element={<Placeholder name="Routine Management" />} />
             <Route path="/profile/:userId" element={<PublicProfileWrapper />} />
             <Route path="/ideas/public/:ideaId" element={<PublicIdeaView />} />

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import defaultAvatar from '../default_avatar.png';
 import PublicProfile from './brainstorming/sections/PublicProfile';
 import { useUser } from '../UserContext';
-import './brainstorming/sections/profile.css';
-
 function UserAvatar({ userId, avatarUrl, size = 36, onClick, isMentor = false, isInvestor = false }) {
   const [showProfile, setShowProfile] = useState(false);
   const { user } = useUser();
